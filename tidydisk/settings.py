@@ -116,7 +116,7 @@ def _clean(key: str, value):
         for p in value:
             if isinstance(p, str) and p.strip():
                 p = os.path.normpath(os.path.expanduser(p.strip()))
-                if p.startswith("/") and p not in out:
+                if os.path.isabs(p) and p not in out:
                     out.append(p)
         return out
     if key == "ai_risk":
@@ -185,19 +185,22 @@ def save(cfg: dict) -> bool:
     p = path()
     try:
         d = os.path.dirname(p)
+        existed = os.path.isdir(d)
         os.makedirs(d, mode=0o700, exist_ok=True)
-        try:
-            os.chmod(d, 0o700)
-        except OSError:
-            pass
+        if not existed or not os.environ.get("FC_CONFIG"):  # nie zmieniaj praw cudzego katalogu podanego w --config
+            try:
+                os.chmod(d, 0o700)
+            except OSError:
+                pass
         tmp = p + ".tmp"
         try:
             os.unlink(tmp)  # stary plik tymczasowy (moze miec inne prawa albo byc symlinkiem)
         except OSError:
             pass
-        fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
-        with os.fdopen(fd, "w", encoding="utf-8") as f:
-            os.fchmod(f.fileno(), 0o600)
+        fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL | osal.O_NOFOLLOW | osal.O_BINARY, 0o600)
+        with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as f:
+            if hasattr(os, "fchmod"):
+                os.fchmod(f.fileno(), 0o600)
             json.dump(sanitize(cfg), f, ensure_ascii=False, indent=2)
             f.flush()
             os.fsync(f.fileno())
@@ -235,10 +238,16 @@ def import_text(text: str) -> dict:
     return new
 
 
+def _n(p: str) -> str:
+    """Postac porownawcza sciezki: normpath; na Windows dodatkowo male litery i '/' (NTFS nie rozroznia wielkosci liter)."""
+    p = os.path.normpath(p)
+    return p if os.sep == "/" else os.path.normcase(p).replace("\\", "/")
+
+
 def is_protected(p: str, protected: list) -> bool:
     """Czy sciezka lezy w chronionym przez uzytkownika miejscu (albo jest nim)."""
-    p = os.path.normpath(p)
-    return any(p == q or p.startswith(q.rstrip("/") + "/") for q in protected)
+    p = _n(p)
+    return any(p == _n(q) or p.startswith(_n(q).rstrip("/") + "/") for q in protected)
 
 
 def apply(cfg: dict) -> dict:
@@ -266,7 +275,7 @@ _TOUCH_CACHE: list = [None, None]  # [krotka chronionych, (zbior, prefiksy, przo
 def _touch_index(protected) -> tuple:
     key = tuple(protected)
     if _TOUCH_CACHE[0] != key:
-        qs = {q.rstrip("/") or "/" for q in key}
+        qs = {_n(q).rstrip("/") or "/" for q in key}
         pre = tuple(q + "/" for q in qs)
         anc = set()  # kazdy prefiks q konczacy sie tuz przed '/', czyli sciezki p, dla ktorych q.startswith(p + "/")
         for q in qs:
@@ -280,7 +289,7 @@ def _touch_index(protected) -> tuple:
 
 def touches(p: str, protected: list) -> bool:
     """Czy usuniecie sciezki dotknelo by chronionego miejsca: sciezka lezy w nim ALBO je zawiera (folder nadrzedny)."""
-    p = os.path.normpath(p)
+    p = _n(p)
     qs, pre, anc = _touch_index(protected)
     return p in qs or p.startswith(pre) or p.rstrip("/") in anc
 

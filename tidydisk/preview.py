@@ -12,7 +12,7 @@ import subprocess
 import tempfile
 import unicodedata
 
-from . import ai
+from . import ai, osal
 
 IMAGE = {"png", "jpg", "jpeg", "gif", "bmp", "webp", "tif", "tiff", "ico", "ppm", "pgm"}
 VIDEO = {"mp4", "mkv", "webm", "avi", "mov", "m4v", "flv", "wmv", "mpg", "mpeg", "ts"}
@@ -41,7 +41,7 @@ def is_secret(path: str) -> bool:
 
 def _open_regular(path: str):
     """(fd, stat) tylko dla zwyklego pliku; bez symlinkow i FIFO."""
-    fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    fd = osal.open_regular(path)
     st = os.fstat(fd)
     if not stat.S_ISREG(st.st_mode):
         os.close(fd)

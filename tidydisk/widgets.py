@@ -514,6 +514,9 @@ class TreemapWidget(QWidget):
         p.end()
 
 
+_THUMBS: set = set()  # dzialajace watki miniatur: trzymamy referencje, zeby GC nie zniszczyl dzialajacego QThread (abort procesu)
+
+
 class ThumbWorker(QThread):
     """Klatka z wideo w tle (ffmpeg), zeby okno nie zamarzalo."""
     ready = pyqtSignal(str, str)  # sciezka pliku, sciezka PNG ('' = brak)
@@ -596,9 +599,13 @@ class PreviewWidget(QWidget):
             self.text.setPlainText("Wczytuję klatkę z filmu …")
             self.text.show()
             self._tmp = self._tmp or preview.new_tempdir()
-            self._worker = ThumbWorker(path, self._tmp)
-            self._worker.ready.connect(self._thumb_ready)
-            self._worker.start()
+            import tempfile
+            w = ThumbWorker(path, tempfile.mkdtemp(dir=self._tmp))  # osobny katalog na watek: starszy nie nadpisze miniatury nowszego
+            w.ready.connect(self._thumb_ready)
+            _THUMBS.add(w)
+            w.finished.connect(lambda w=w: _THUMBS.discard(w))
+            self._worker = w
+            w.start()
         elif d["text"]:
             self.text.setPlainText(d["text"])
             self.text.show()

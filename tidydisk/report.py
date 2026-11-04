@@ -12,7 +12,7 @@ import platform
 import re
 import time
 
-from . import __version__, kb, osal, settings
+from . import __version__, fsutil, kb, osal, settings
 from .core import HOME, ai_only, fmt_size
 
 DECISION_DELETE = "USUNĘ"
@@ -128,14 +128,14 @@ def build_markdown(cats, protected=None, scan=None, disks=None, anon: Anon | Non
         L.append("|---|---:|---|---|---|" + ("---|" if with_reason else ""))
         for r in items:
             text = f"{r['what']} - {r['why']}" if r["what"] and r["why"] else f"{r['what']}{r['why']}".strip()
+            lab, where = _mask(an, r)
             if text in seen_text:
                 shown = f"↑ jak „{_cell(seen_text[text])}”"
             else:
-                seen_text[text] = r["label"]
+                seen_text[text] = lab
                 shown = _cell(text)
-            where = an.path(r["target"])
             where = where if len(where) <= 70 else where[:67] + "…"
-            line = (f"| {_cell(an.path(r['label']))} | {fmt_size(r['size'])} | "
+            line = (f"| {_cell(lab)} | {fmt_size(r['size'])} | "
                     f"{kb.RATING_LABEL.get(r['rating'], r['rating'])} | {shown} | `{_cell(where)}` |")
             if with_reason:
                 line += f" {_cell(r['reason'])} |"
@@ -282,6 +282,16 @@ def _scan_section(scan, an: Anon) -> list:
     return L
 
 
+def _mask(an, r) -> tuple:
+    """(nazwa, miejsce) pozycji do raportu; dla 'Twoich plikow' bez nazw plikow i folderow (jak deklaruje naglowek raportu)."""
+    if r["rating"] != kb.MINE:
+        return an.path(r["label"]), an.path(r["target"])
+    parts = [an.shown(t, r["rating"]) for t in str(r["target"]).split(" ; ")]
+    where = " ; ".join(parts)
+    label = parts[0].rsplit("/", 1)[-1] if len(parts) == 1 and parts[0] else "Twoje pliki"
+    return label, where
+
+
 def build_csv(cats, protected=None, anon: Anon | None = None) -> str:
     an = anon or Anon()
     buf = io.StringIO()
@@ -290,10 +300,12 @@ def build_csv(cats, protected=None, anon: Anon | None = None) -> str:
                 "co_to_jest", "dlaczego", "ostrzezenie_lub_powod", "cel_lub_polecenie",
                 "administrator", "regula", "dysk"])
     for r in _rows(cats):
-        w.writerow([r["decision"], r["category"], an.path(r["label"]), r["size"], r["rating"],
-                    "usunąć" if r["suggested"] else "zostawić", r["what"], r["why"],
-                    r["warn"] or r["reason"], an.path(r["target"]), "tak" if r["root"] else "nie",
-                    r["rule"], an.path(r["disk"])])
+        lab, where = _mask(an, r)
+        w.writerow([fsutil.csv_safe(x) for x in
+                    [r["decision"], r["category"], lab, r["size"], r["rating"],
+                     "usunąć" if r["suggested"] else "zostawić", r["what"], r["why"],
+                     r["warn"] or r["reason"], where, "tak" if r["root"] else "nie",
+                     r["rule"], an.path(r["disk"])]])
     prot = list(protected or [])
     for c in cats:
         prot += c.protected

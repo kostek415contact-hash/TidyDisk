@@ -20,3 +20,8 @@ def atomic_write(path, text: str, mode: int = 0o600) -> None:
             os.unlink(tmp)
         except OSError:
             pass
+
+
+def csv_safe(v):
+    """Komorka CSV zaczynajaca sie od = + - @ (albo tab/CR) bylaby w arkuszu formula: dopisujemy apostrof. Puste zostaja puste."""
+    return "'" + v if isinstance(v, str) and v[:1] in ("=", "+", "-", "@", "\t", "\r") else v

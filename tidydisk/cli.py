@@ -120,7 +120,7 @@ def _csv_rows(rows: list, fields: list, out) -> None:
     w = csv.writer(out)
     w.writerow(fields)
     for r in rows:
-        w.writerow([";".join(map(str, r[f])) if isinstance(r[f], list) else r[f] for f in fields])
+        w.writerow([fsutil.csv_safe(";".join(map(str, r[f])) if isinstance(r[f], list) else r[f]) for f in fields])
 
 
 def _coerce(key: str, text: str):
@@ -268,6 +268,9 @@ def main(argv=None) -> int:
     p = build_parser()
     a = p.parse_args(argv)
     out = sys.stdout
+    if osal.is_windows() and a.cmd in ("analyze", "ai", "background", "schedule"):
+        sys.stderr.write(f"Polecenie '{a.cmd}' nie jest jeszcze dostępne na Windows (działają: status, scan, report, config, rules).\n")
+        return EXIT_USAGE
     if osal.SYSTEM == "linux" and a.cmd not in ("schedule",):
         from . import schedule as _sch
         _sch.migrate_legacy_units()  # po zmianie nazwy: stare timery fedora-cleaner-* -> tidydisk-*
@@ -359,6 +362,9 @@ def main(argv=None) -> int:
     if a.cmd == "notify":
         data, cats = collect()
         disks = {m: d for m, d in data["disks"].items() if not a.disk or m == a.disk.rstrip("/") or m == a.disk}
+        if not disks:
+            sys.stderr.write(f"Nieznany dysk: {a.disk}. Dostępne: {', '.join(data['disks'])}\n")
+            return EXIT_USAGE
         free = min((d["total"] - d["used"] for d in disks.values()), default=0)
         text = schedule.should_notify(free, data["safe_reclaimable"], a.min_free, a.min_reclaim)
         if text:

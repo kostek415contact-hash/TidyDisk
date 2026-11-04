@@ -233,9 +233,20 @@ SAMPLES = 6  # + tyle probek po 4 KB rownomiernie w srodku (pliki z wypelnionym 
 SAMPLE_LEN = 4096
 
 
+# Flagi i pread: na Windows ich nie ma (skaner jest tez osadzany w skrypcie roota, wiec bez importu osal)
+_O_FLAGS = getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0) | getattr(os, "O_BINARY", 0)
+
+
+def _pread(fd: int, n: int, offset: int) -> bytes:
+    if hasattr(os, "pread"):
+        return os.pread(fd, n, offset)
+    os.lseek(fd, offset, os.SEEK_SET)
+    return os.read(fd, n)
+
+
 def _file_hash(path: str, size: int, partial: bool) -> str:
     h = hashlib.blake2b(digest_size=16)
-    fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)  # bez symlinkow i FIFO (podmiana w trakcie skanu)
+    fd = os.open(path, os.O_RDONLY | _O_FLAGS)  # bez symlinkow i FIFO (podmiana w trakcie skanu)
     try:
         st = os.fstat(fd)
         if not stat.S_ISREG(st.st_mode):
@@ -250,19 +261,17 @@ def _file_hash(path: str, size: int, partial: bool) -> str:
             n = st.st_size
             offs = [0] + [n * k // (SAMPLES + 1) for k in range(1, SAMPLES + 1)] + [max(n - EDGE, 0)]
             for i, off in enumerate(offs):
-                h.update(os.pread(fd, EDGE if i in (0, len(offs) - 1) else SAMPLE_LEN, off))
+                h.update(_pread(fd, EDGE if i in (0, len(offs) - 1) else SAMPLE_LEN, off))
         else:
             try:
                 os.posix_fadvise(fd, 0, 0, os.POSIX_FADV_SEQUENTIAL)
             except (AttributeError, OSError):
                 pass
-            buf = bytearray(1 << 20)
-            mv = memoryview(buf)
             while True:
-                got = os.readv(fd, [buf])
-                if not got:
+                chunk = os.read(fd, 1 << 20)
+                if not chunk:
                     break
-                h.update(mv[:got])
+                h.update(chunk)
     finally:
         os.close(fd)
     HASH_CACHE[key] = h.hexdigest()
@@ -794,7 +803,7 @@ def build_admin_source(root: str, home: str, data_mounts=(), argv: bool = False,
         "_kb = kb.KnowledgeBase(_home, _mounts)\n"
         "def _prog(n, total, path):\n"
         "    print('P %d' % n, flush=True)\n"
-        "_res = scan(_root, _kb, _prog, max_depth=4, keep_min=32 * 1024 * 1024, mode='admin')\n"
+        "_res = scan(_root, _kb, _prog, max_depth=4, keep_min=32 * 1024 * 1024, mode='admin', advise=False)\n"
         "print('J ' + json.dumps(_res.to_dict()), flush=True)\n"
     )
     return (

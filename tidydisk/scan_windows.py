@@ -55,7 +55,19 @@ def _group_of(rule: str) -> int:
     return len(_GROUPS) - 1
 
 
-def scan(home: str | None = None, size_of=None, status=lambda _m: None) -> list:
+_PROGRAMS = (("chrome", "chrome"), ("msedge", "edge"), ("firefox", "firefox"), ("brave", "brave"), ("code", "/code/"), ("discord", "discord"))
+
+
+def _running_warn(where: str, running: set) -> str:
+    """Ostrzezenie, gdy program, do ktorego nalezy cache, jest teraz uruchomiony (jego cache jest w uzyciu)."""
+    low = str(where).lower().replace("\\", "/")
+    for exe, needle in _PROGRAMS:
+        if needle in low and exe in running:
+            return f"Program działa ({exe}) - zamknij go przed czyszczeniem"
+    return ""
+
+
+def scan(home: str | None = None, size_of=None, status=lambda _m: None, running: set | None = None) -> list:
     """Zwraca liste core.Category (rating z bazy wiedzy Windows). `size_of(path)` domyslnie core.path_size."""
     from . import core  # tu, bo core importuje ten modul przy wyborze skanu
     home = str(home or Path.home())
@@ -77,13 +89,23 @@ def scan(home: str | None = None, size_of=None, status=lambda _m: None) -> list:
             if size <= 0:
                 continue
             v = base.classify(path)
-            ent = core.Entry(label=title, size=size, kind="path", paths=[path], note=path,
+            label = title
+            parts = [p for p in path.replace("\\", "/").split("/") if p]
+            low = [p.lower() for p in parts]
+            if "*" in pattern and "user data" in low and low.index("user data") + 1 < len(parts):
+                label = f"{title} ({parts[low.index('user data') + 1]})"  # nazwa profilu przegladarki (Default, Profile 1 ...)
+            elif "*" in pattern and "profiles" in low and low.index("profiles") + 1 < len(parts):
+                label = f"{title} ({parts[low.index('profiles') + 1]})"
+            ent = core.Entry(label=label, size=size, kind="contents", paths=[path], note=path,
                              rating=v.rating, rule=v.rule, why=v.why,
                              what=f"{v.title} - {v.what}" if v.title else v.what)
             grouped[_group_of(pattern)].append(ent)
+    running = running if running is not None else core.running_names()
     cats = []
     for (key, title, desc, _n), entries in zip(_GROUPS, grouped):
         if entries:
+            for e in entries:
+                e.warn = _running_warn(e.rule or e.note, running)
             entries.sort(key=lambda e: -e.size)
             cats.append(core.Category(key, title, desc, False, entries))
     return cats

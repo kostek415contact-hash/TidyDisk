@@ -1,5 +1,35 @@
 # Historia zmian
 
+## 2.20.0 - Audyt: bezpieczeństwo usuwania, Windows, pakiety, dokumentacja
+
+Pięć niezależnych przeglądów kodu (Windows, bezpieczeństwo, pakiety/CI, logika/GUI, UX/dokumentacja). Naprawione:
+
+**Bezpieczeństwo usuwania**
+- Wyścig (TOCTOU): usuwanie działa na jednokrotnie rozwiązanej ścieżce rodzica otwartej krok po kroku z `O_NOFOLLOW` i kasuje względem deskryptora; podmiana katalogu na symlink po sprawdzeniu kończy się błędem, nie skasowaniem celu poza dozwolonymi katalogami.
+- Końcowy `/` (`~/.ssh/`) nie omija już ochrony „Nie ruszaj”; wybrany ręcznie punkt montowania nie jest czyszczony; zbyt głębokie drzewo nie przerywa czyszczenia (`RecursionError`).
+- Korzeń „dozwolonego katalogu”, który symlinkiem wskazuje na katalog domowy, jego przodka lub `/`, jest pomijany.
+- Raport (Markdown i CSV) maskuje nazwy plików w „Twoich plikach”; CSV neutralizuje komórki zaczynające się od `= + - @` (wszędzie, puste zostają puste).
+- Skaner administratora nie robi `rpm -qp` na plikach użytkowników; `settings.save` nie zmienia praw cudzego katalogu z `--config`.
+- Skrypt roota zwraca błąd, gdy którykolwiek krok się nie powiódł (wcześniej liczył się tylko ostatni).
+- Migracja timerów nie nadpisuje istniejących nowych jednostek.
+
+**Windows (nadal tylko skan i raport)**
+- Zablokowane usuwanie w każdym prymitywie (`remove_path`, `rm_tree`, `remove_contents`, `trash_path`), nie tylko w `run_clean`; okno pokazuje komunikat zamiast potwierdzenia.
+- `osal.O_NOFOLLOW/O_NONBLOCK/O_BINARY`, `open_regular`, `pread`; skróty plików, podgląd i zapis ustawień nie wywalają się na Windows.
+- `analyze`, `ai`, `background`, `schedule` wyłączone z czytelnym komunikatem; chronione ścieżki działają z `C:\...` i bez względu na wielkość liter; konsola z `errors=replace`.
+- Skan: pozycje „zawartość katalogu”, nazwa profilu przeglądarki w etykiecie, ostrzeżenie gdy przeglądarka działa; brak opcji „administrator” i komunikatu o root.
+
+**Logika i GUI (sprawdzone tylko na atrapie Qt)**
+- Wątek miniatury wideo nie jest niszczony w trakcie pracy; klik w kategorię nie zaznacza wierszy ukrytych filtrem; wiersze „Wszystkie pliki” przepinane na nowe wpisy po analizie.
+- `detect()` nie przerywa na obcej usłudze z kodem 401/403; `notify --disk` z nieznanym dyskiem zwraca błąd; absurdalna data pliku nie wywala okna.
+
+**Pakiety i dokumentacja**
+- CI: macierz Fedora 44/45/rawhide, artefakty RPM i `.exe`; `install.sh`/`uninstall.sh` rozpoznają `.deb` i nie przerywają bez terminala; `.deb` zależy od `pkexec`, zawiera CHANGELOG; spec: poprawny `%changelog`, `hicolor-icon-theme`.
+- Prompty AI są neutralne systemowo (Linux/Windows/macOS) - **pamięć ocen AI zostanie odświeżona przy następnym przebiegu**.
+- README: poprawione zdanie o zmianie nazwy, opis podglądu zawartości dla AI, polecenia terminala, ścieżki Windows; kilka napisów dostało tłumaczenia.
+
+Świadomie bez zmian: klucz API nadal idzie do pierwszego odpowiadającego portu przy pustym adresie (ustaw adres serwera na komputerze wieloosobowym).
+
 ## 2.19.5 - Windows: bez informacji o btrfs
 
 - Test `tidydisk.exe` pod Wine (status, skan, raport) przeszedł. Poprawka: na Windows nie pokazujemy już komunikatu o migawkach btrfs (pod Wine był widoczny `/proc/mounts` hosta).

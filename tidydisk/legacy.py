@@ -40,7 +40,7 @@ def migrate_units(unit_dir: Path, systemctl=None) -> list:
         new_name = f"{NEW}-{suf}"
         try:
             for src, ext in ((old_s, "service"), (old_t, "timer")):
-                if src.exists():
+                if src.exists() and not (unit_dir / f"{new_name}.{ext}").exists():  # nowszych ustawien nie nadpisujemy
                     text = src.read_text(encoding="utf-8").replace(OLD_PKG, NEW).replace(OLD, NEW)
                     (unit_dir / f"{new_name}.{ext}").write_text(text, encoding="utf-8")
         except OSError:

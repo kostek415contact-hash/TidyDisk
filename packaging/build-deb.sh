@@ -26,7 +26,8 @@ install -Dm644 "$ROOT/data/tidydisk.metainfo.xml" "$B/usr/share/metainfo/tidydis
 install -Dm644 "$ROOT/data/org.tidydisk.admin-scan.policy" "$B/usr/share/polkit-1/actions/org.tidydisk.admin-scan.policy"
 install -Dm644 "$ROOT/LICENSE" "$B/usr/share/doc/tidydisk/copyright"
 install -Dm644 "$ROOT/README.md" "$B/usr/share/doc/tidydisk/README.md"
-( cd "$ROOT" && python3 -I -c '
+install -Dm644 "$ROOT/CHANGELOG.md" "$B/usr/share/doc/tidydisk/CHANGELOG.md"
+( cd "$ROOT" && TIDYDISK_NO_MIGRATE=1 python3 -I -c '
 import sys; sys.path.insert(0, ".")
 from tidydisk import scanner, __version__
 sys.stdout.write(scanner.build_admin_source("/", "", (), argv=True, version=__version__))' ) > "$B/usr/libexec/tidydisk/admin_scan.py"
@@ -38,7 +39,7 @@ Version: $VER
 Section: utils
 Priority: optional
 Architecture: all
-Depends: python3 (>= 3.10), python3-pyqt6, policykit-1 | polkitd
+Depends: python3 (>= 3.10), python3-pyqt6, pkexec | policykit-1
 Replaces: fedora-cleaner
 Conflicts: fedora-cleaner
 Provides: fedora-cleaner

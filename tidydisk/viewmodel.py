@@ -78,7 +78,10 @@ def plural(n: int, one: str, few: str, many: str) -> str:
 def date_text(ts: int) -> str:
     if not ts:
         return "—"
-    return time.strftime("%Y-%m-%d", time.localtime(ts))
+    try:
+        return time.strftime("%Y-%m-%d", time.localtime(ts))
+    except (OverflowError, OSError, ValueError):  # absurdalny mtime z uszkodzonego pliku nie moze wywalic okna
+        return "—"
 
 
 def short_path(path: str) -> str:

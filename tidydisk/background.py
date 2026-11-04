@@ -64,7 +64,7 @@ def export_rows(rows: list, dest: str) -> int:
         w = csv.DictWriter(buf, fieldnames=["etap", "sciezka", "rozmiar", "werdykt", "ryzyko", "uzasadnienie", "czas"])
         w.writeheader()
         for r in rows:  # komorki zaczynajace sie od =,+,-,@ neutralizujemy (formuly w arkuszu)
-            w.writerow({k: ("'" + v if isinstance(v, str) and v[:1] in "=+-@" else v) for k, v in r.items()})
+            w.writerow({k: fsutil.csv_safe(v) for k, v in r.items()})
         text = buf.getvalue()
     fsutil.atomic_write(Path(dest), text)
     return len(rows)

@@ -202,11 +202,23 @@ def is_safe_target(path: str) -> bool:
     if STEAM_TARGET_RE.search(path) and not os.path.islink(path) and os.path.isdir(path):
         return True
     parent = Path(os.path.realpath(os.path.dirname(os.path.abspath(path))))
-    for root in ALLOWED_ROOTS:
-        root_real = Path(os.path.realpath(root))
+    for root_real in map(Path, _allowed_roots_real()):
         if parent == root_real or root_real in parent.parents:
             return True
     return False
+
+
+def _allowed_roots_real() -> list:
+    """Rozwiazane korzenie, w ktorych wolno kasowac. Korzen, ktory (np. przez symlink ~/.cache -> ~) wskazuje na caly
+    katalog domowy, jego przodka albo "/", jest pomijany - inaczej 'dozwolony katalog' obejmowalby wszystko."""
+    home = Path(os.path.realpath(str(HOME)))
+    out = []
+    for root in ALLOWED_ROOTS:
+        r = Path(os.path.realpath(root))
+        if r == home or r in home.parents or str(r) == os.sep:
+            continue
+        out.append(str(r))
+    return out
 
 
 def _rm_fd(fd: int, path: str, dev: int, errors: list) -> None:
@@ -239,9 +251,39 @@ def _rm_fd(fd: int, path: str, dev: int, errors: list) -> None:
                 os.unlink(name, dir_fd=fd)
         except OSError as ex:
             errors.append(f"{full}: {ex.strerror}")
+        except RecursionError:
+            errors.append(f"{full}: pominięto (zbyt głęboko zagnieżdżony katalog)")
+
+
+def _open_dir_nofollow(path: str) -> int:
+    """Otwiera katalog o JUZ ROZWIAZANEJ sciezce (realpath), krok po kroku z O_NOFOLLOW od korzenia: jesli ktorykolwiek
+    skladnik zostal w miedzyczasie podmieniony na symlink, otwarcie sie nie uda (zamiast skasowac cos poza celem)."""
+    fd = os.open("/", os.O_RDONLY | os.O_DIRECTORY)
+    try:
+        for part in path.split("/"):
+            if not part:
+                continue
+            nfd = os.open(part, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=fd)
+            os.close(fd)
+            fd = nfd
+        return fd
+    except BaseException:
+        os.close(fd)
+        raise
+
+
+def _allowed_parent(parent_real: str) -> bool:
+    """Czy juz rozwiazany (bez symlinkow) katalog lezy w dozwolonym korzeniu; czyste porownanie napisow, bez dotykania dysku."""
+    for r in _allowed_roots_real():
+        r = r.rstrip("/")
+        if parent_real == r or parent_real.startswith(r + "/"):
+            return True
+    return False
 
 
 def rm_tree(path: str, errors: list) -> None:
+    if _win_block(path, errors):
+        return
     try:
         fd = os.open(path, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
     except OSError as ex:
@@ -264,6 +306,7 @@ def is_user_target(path: str) -> tuple:
     miejsca ocenione jako 'nie ruszaj' (ustawienia, klucze, system)."""
     if bad_path(path):
         return False, "nieprawidłowa ścieżka"
+    path = os.path.normpath(path)  # bez koncowego '/', '//' i './': inaczej "~/.ssh/" omijalo ochrone "~/.ssh"
     if is_protected(path):
         return False, "chronione w Ustawieniach"
     real = os.path.realpath(os.path.dirname(os.path.abspath(path)))
@@ -281,6 +324,9 @@ def is_user_target(path: str) -> tuple:
 
 def trash_path(path: str, errors: list) -> None:
     """Przenosi do kosza (mozna przywrocic) przez `gio trash`."""
+    if _win_block(path, errors):
+        return
+    path = os.path.normpath(path)
     if not shutil.which("gio"):
         errors.append(f"{path}: brak polecenia gio - nie mogę przenieść do kosza")
         return
@@ -388,33 +434,80 @@ def holds_keep(path: str, depth: int = 3, budget: int = 4000) -> str:
     return ""
 
 
+def _win_block(path: str, errors: list) -> bool:
+    """Na Windows usuwanie jest wylaczone na poziomie KAZDEGO prymitywu (nie tylko run_clean)."""
+    if osal.is_windows():
+        errors.append(f"{path}: usuwanie na Windows jest wyłączone w tej wersji")
+        return True
+    return False
+
+
 def remove_path(path: str, errors: list, user: bool = False) -> None:
+    if _win_block(path, errors):
+        return
     if bad_path(path):
         errors.append(f"pominięto (nieprawidłowa ścieżka): {path}")
         return
+    path = os.path.normpath(path)
     if is_protected(path):
         errors.append(f"pominięto (chronione w Ustawieniach): {path}")
         return
     if not user and not is_safe_target(path):
         errors.append(f"pominięto (poza dozwolonymi katalogami): {path}")
         return
-    if user and os.path.isdir(path) and not os.path.islink(path):
-        name = holds_keep(path)
-        if name:
-            errors.append(f"pominięto (w środku jest {name} - nie ruszam): {path}")
+    # Od tej chwili dzialamy na JEDNEJ, raz rozwiazanej sciezce rodzica i kasujemy wzgledem jego deskryptora (dir_fd):
+    # podmiana skladnika na symlink po sprawdzeniu konczy sie bledem, a nie skasowaniem czegos poza celem.
+    real_parent = os.path.realpath(os.path.dirname(os.path.abspath(path)))
+    name = os.path.basename(path)
+    target = os.path.join(real_parent, name)
+    if not user and not (_allowed_parent(real_parent) or (STEAM_TARGET_RE.search(target) and os.path.isdir(target))):
+        errors.append(f"pominięto (poza dozwolonymi katalogami): {path}")
+        return
+    if user:
+        if os.path.isdir(target) and not os.path.islink(target):
+            kept = holds_keep(target)
+            if kept:
+                errors.append(f"pominięto (w środku jest {kept} - nie ruszam): {path}")
+                return
+        ok, why = is_user_target(target)  # ponowna kontrola na rozwiazanej sciezce
+        if not ok:
+            errors.append(f"pominięto ({why}): {path}")
             return
     try:
-        if os.path.islink(path) or not os.path.isdir(path):
-            os.unlink(path)
+        pfd = _open_dir_nofollow(real_parent)
+    except FileNotFoundError:
+        return
+    except OSError as ex:
+        errors.append(f"{path}: {ex.strerror} (katalog nadrzędny zmienił się w trakcie - pominięto)")
+        return
+    try:
+        try:
+            st = os.stat(name, dir_fd=pfd, follow_symlinks=False)
+        except FileNotFoundError:
+            return
+        if stat.S_ISDIR(st.st_mode):
+            if st.st_dev != os.fstat(pfd).st_dev:
+                errors.append(f"{path}: pominięto (punkt montowania / inny system plików)")
+                return
+            sub = os.open(name, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=pfd)
+            try:
+                _rm_fd(sub, target, st.st_dev, errors)
+            finally:
+                os.close(sub)
+            os.rmdir(name, dir_fd=pfd)
         else:
-            rm_tree(path, errors)
+            os.unlink(name, dir_fd=pfd)
     except FileNotFoundError:
         pass
     except OSError as ex:
         errors.append(f"{path}: {ex.strerror}")
+    finally:
+        os.close(pfd)
 
 
 def remove_contents(directory: str, errors: list) -> None:
+    if _win_block(directory, errors):
+        return
     try:
         with os.scandir(directory) as it:
             children = [c.path for c in it]
@@ -1042,12 +1135,13 @@ def build_root_script(entries: list) -> str:
                     pkgs.append(p)
         elif e.kind == "root_sh":
             others.append(f"echo {shlex.quote('== ' + e.label)}")
-            others.append(e.cmd)
-    lines = ["set +e"]
+            others.append("{ " + e.cmd + "\n} || rc=1")
+    lines = ["set +e", "rc=0"]  # kod wyjscia = 1, gdy ktorykolwiek krok sie nie powiodl (a nie tylko ostatni)
     if pkgs:
         lines.append("echo '== Usuwanie pakietów'")
-        lines.append("dnf remove -y -- " + " ".join(shlex.quote(p) for p in pkgs))
+        lines.append("dnf remove -y -- " + " ".join(shlex.quote(p) for p in pkgs) + " || rc=1")
     lines.extend(others)
+    lines.append("exit $rc")
     return "\n".join(lines)
 
 

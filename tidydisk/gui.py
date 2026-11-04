@@ -44,6 +44,7 @@ from .core import fmt_size
 from .settings_page import SettingsPage
 from .viewmodel import plural, rating_color, rating_legend_html, rating_text
 from .widgets import (
+    _THUMBS,
     FRAC_ROLE,
     ProgressTracker,
     QSS,
@@ -392,7 +393,7 @@ class FoldersPage(QWidget):
         if item is None or not item.data(0, PATH_ROLE):
             return
         menu = QMenu(self)
-        act = menu.addAction("Otwórz w menedżerze plików")
+        act = menu.addAction(i18n.tr("Otwórz w menedżerze plików"))
         if menu.exec(self.tree.viewport().mapToGlobal(pos)) == act:
             open_in_file_manager(item.data(0, PATH_ROLE))
 
@@ -1283,6 +1284,7 @@ class CleanupPage(QWidget):
             for t in (self.adv_tree,):
                 for i in range(t.topLevelItemCount()):
                     self._sync_parent(t.topLevelItem(i))
+            self._rebind_file_rows()
         finally:
             self._guard = False
         self._refresh_tab_titles()
@@ -1363,6 +1365,7 @@ class CleanupPage(QWidget):
                 self._adv_child(top, e, biggest)
             self._sync_parent(top)
             top.setExpanded(True)
+        self._rebind_file_rows()
         self._guard = False
         n = sum(len(c.entries) for c in self.adv_cats)
         total = sum(e.size for c in self.adv_cats for e in c.entries)
@@ -1598,6 +1601,17 @@ class CleanupPage(QWidget):
                 ch.setCheckState(0, Qt.CheckState.Checked if state else Qt.CheckState.Unchecked)
                 self._file_checked(ch)
 
+    def _rebind_file_rows(self) -> None:
+        """Po nowej analizie file_entries trzyma NOWE obiekty Entry, a wiersze 'Wszystkie pliki' - stare: bez tego
+        zaznaczenie w tej zakladce nie trafialoby do wyboru. Przepinamy wiersze na aktualne wpisy (wolac pod _guard)."""
+        for i in range(self.files_tree.topLevelItemCount()):
+            for ch in self._walk_files(self.files_tree.topLevelItem(i)):
+                old = ch.data(0, ENTRY_ROLE)
+                cur = self.file_entries.get(old.paths[0]) if old is not None and old.paths else None
+                if cur is not None and cur is not old:
+                    ch.setData(0, ENTRY_ROLE, cur)
+                    ch.setCheckState(0, Qt.CheckState.Checked if cur.checked else Qt.CheckState.Unchecked)
+
     def _walk_files(self, item):
         for j in range(item.childCount()):
             ch = item.child(j)
@@ -1667,6 +1681,8 @@ class CleanupPage(QWidget):
                 state = item.checkState(0)
                 if state != Qt.CheckState.PartiallyChecked:
                     for ch in self._children(item):
+                        if ch.isHidden():  # filtr (szukaj/dysk/rodzaj/widok): niewidocznych wierszy nie ruszamy
+                            continue
                         ch.setCheckState(0, state)
                         ch.data(0, ENTRY_ROLE).checked = state == Qt.CheckState.Checked
             else:
@@ -1854,7 +1870,7 @@ class CleanupPage(QWidget):
         if not e or not e.paths:
             return
         menu = QMenu(self)
-        act = menu.addAction("Otwórz w menedżerze plików")
+        act = menu.addAction(i18n.tr("Otwórz w menedżerze plików"))
         ign = menu.addAction(i18n.tr("Nie proponuj tego więcej")) if tree is self.adv_tree else None
         prot = menu.addAction(i18n.tr("Zawsze zostaw (dodaj do chronionych)")) if tree is self.adv_tree else None
         ask = menu.addAction("Zapytaj asystenta AI …") if tree is not self.tree else None
@@ -1938,7 +1954,7 @@ class PhotosPage(QWidget):
             return
         self.tree.clear()
         self.status.setText("Szukam …")
-        self.btn_scan.setText("Przerwij")
+        self.btn_scan.setText(i18n.tr("Przerwij"))
         self.worker = PhotoWorker([self.folder])
         self.worker.progress.connect(lambda i, n: self.status.setText(f"Sprawdzam zdjęcia: {i} z {n}"))
         self.worker.done.connect(self.fill)
@@ -2202,7 +2218,7 @@ class ReviewDialog(QDialog):
         self.btn_del_rest = QPushButton("Usuń resztę")
         self.btn_del_rest.setToolTip("Usuwa tę i wszystkie pozostałe pozycje bez dalszych pytań.")
         self.btn_del_rest.clicked.connect(lambda: self._act("delete_rest"))
-        self.btn_abort = QPushButton("Przerwij")
+        self.btn_abort = QPushButton(i18n.tr("Przerwij"))
         self.btn_abort.clicked.connect(lambda: self._act("abort"))
         self.btn_delete = QPushButton("Usuń")
         self.btn_delete.setObjectName("primary")
@@ -2420,7 +2436,7 @@ class MainWindow(QMainWindow):
         lay.addWidget(self.scan_combo)
         self.btn_scan = QPushButton("Skanuj")
         self.btn_scan.clicked.connect(self.start_selected_scan)
-        self.btn_cancel = QPushButton("Przerwij")
+        self.btn_cancel = QPushButton(i18n.tr("Przerwij"))
         self.btn_cancel.clicked.connect(self.cancel_disk_scan)
         self.btn_cancel.hide()
         lay.addWidget(self.btn_scan)
@@ -2433,10 +2449,11 @@ class MainWindow(QMainWindow):
         """Lista celow skanowania: dom, kazdy dodatkowy dysk, caly system."""
         labels = disks.mount_labels()
         self.scan_combo.clear()
-        self.scan_combo.addItem("Mój katalog domowy", ("user", str(core.HOME)))
+        self.scan_combo.addItem("Mój profil użytkownika" if osal.is_windows() else "Mój katalog domowy", ("user", str(core.HOME)))
         for mp in core.data_mounts():
             self.scan_combo.addItem(f"Dysk {mp}  ({labels.get(mp, mp)})", ("user", mp))
-        self.scan_combo.addItem("Cały system - wszystkie dyski (administrator)", ("admin", "/"))
+        if osal.SYSTEM == "linux":  # skan administratora = pkexec + polkit: tylko Linux
+            self.scan_combo.addItem("Cały system - wszystkie dyski (administrator)", ("admin", "/"))
 
     def browse_disk(self, label) -> None:
         """Przejdz do przegladarki plikow wybranego dysku (z listy w Sprzataniu)."""
@@ -2838,6 +2855,10 @@ class MainWindow(QMainWindow):
         return None if session.aborted else session.approved
 
     def start_clean(self) -> None:
+        if osal.is_windows():  # w tej wersji Windows tylko skan i raport
+            from . import scan_windows
+            QMessageBox.information(self, "TidyDisk", scan_windows.refuse_message())
+            return
         cp = self.clean_page
         sel = cp.selected_entries()
         if not sel or self.busy:
@@ -2962,7 +2983,7 @@ class MainWindow(QMainWindow):
         self.gbar.setFixedWidth(360)
         self.gbar.setFixedHeight(16)
         self.gbar.setAccessibleName("Postęp pracy w tle")
-        self.gcancel = QPushButton("Przerwij")
+        self.gcancel = QPushButton(i18n.tr("Przerwij"))
         self.gcancel.setAccessibleName("Przerwij pracę w tle")
         self.gcancel.clicked.connect(self.cancel_background)
         sb.addPermanentWidget(self.gbar)
@@ -3041,12 +3062,13 @@ class MainWindow(QMainWindow):
             ev.ignore()
             self.hide()
             self.tray.show()
-            self.tray.showMessage("TidyDisk", "Pracuję dalej w tle. Kliknij ikonę, żeby wrócić; powiadomię o końcu.")
+            self.tray.showMessage("TidyDisk", i18n.tr("Pracuję dalej w tle. Kliknij ikonę, żeby wrócić; powiadomię o końcu."))
             return
         workers = [getattr(self, n, None) for n in ("dscanner", "triage_worker", "ai_worker", "analyzer", "scanner")]
         workers += [getattr(self.settings_page, "tester", None)] + list(getattr(self, "_retired", []))
         workers.append(getattr(self.clean_page.panel.preview, "_worker", None))
         workers += [self.photos_page.worker, getattr(self.photos_page.preview, "_worker", None)]
+        workers += list(_THUMBS)  # watki miniatur, ktorych nikt inny juz nie trzyma
         for w in workers:
             if w is not None and w.isRunning():
                 if hasattr(w, "cancel"):
@@ -3074,8 +3096,8 @@ def main() -> int:
     if osal.is_admin():
         QMessageBox.critical(
             None, "TidyDisk",
-            "Nie uruchamiaj jako root - program sam poprosi o hasło tylko tam, "
-            "gdzie jest potrzebne (inaczej ~ wskazuje na /root).")
+            "Nie uruchamiaj programu jako administrator - sam poprosi o uprawnienia tylko tam, "
+            "gdzie są potrzebne (inaczej wskazuje na profil administratora, nie Twój).")
         return 1
     i18n.set_language(settings.load()["language"])
     theme.apply(app, settings.load()["theme"], QSS)

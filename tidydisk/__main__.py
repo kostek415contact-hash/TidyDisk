@@ -8,12 +8,20 @@ def run() -> int:
         from .cli import main as cli_main
 
         return cli_main()
-    from .gui import main
-
+    try:
+        from .gui import main
+    except ImportError:  # wersja konsolowa (.exe bez PyQt6)
+        sys.stderr.write("Wersja konsolowa bez okna: tidydisk status | scan | report | config | rules | --help\n")
+        return 2
     return main()
 
 
 def main() -> None:
+    for stream in (sys.stdout, sys.stderr):  # konsola Windows (cp852/cp1250) nie moze wywalic programu na znaku spoza strony kodowej
+        try:
+            stream.reconfigure(errors="replace")
+        except (AttributeError, ValueError):
+            pass
     code = run()
     if len(sys.argv) > 1 and sys.argv[1] in ("ai", "background"):
         # wyniki sa zapisane; porzucone zapytania do AI (watki) nie moga wstrzymac wyjscia az do konca limitu czasu

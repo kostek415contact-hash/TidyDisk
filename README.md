@@ -1,8 +1,8 @@
 # TidyDisk
 
-> Dawniej *Fedora Cleaner*. Po aktualizacji ustawienia i dane przenoszą się same; stare polecenie `fedora-cleaner` zastąpiło `tidydisk`.
+> Dawniej *Fedora Cleaner*: polecenie `tidydisk` zastąpiło dawne `fedora-cleaner`. Po aktualizacji ustawienia i dane z `~/.config/fedora-cleaner` i `~/.local/share/fedora-cleaner` przenoszą się same (tylko gdy nowe katalogi jeszcze nie istnieją; `TIDYDISK_NO_MIGRATE=1` to wyłącza), a timery systemd `fedora-cleaner-*` zamieniają się na `tidydisk-*`. Zmienne `FC_AI_URL`, `FC_AI_KEY`, `FC_AI_MODEL` i `FC_CONFIG` (FC = dawne Fedora Cleaner) działają bez zmian.
 
-Graficzny program do sprzątania dysku na Fedorze (KDE/GNOME). Przeszukuje wszystkie pliki,
+Graficzny program do sprzątania dysku na Linuksie (Fedora, Debian/Ubuntu/Mint) i - na razie tylko skan i raport, bez usuwania - na Windows. Przeszukuje wszystkie pliki,
 wyjaśnia, czym są, pokazuje podział na dyski i partycje, a przed usunięciem **mówi, co usunie,
 co zostawi i dlaczego**.
 
@@ -35,8 +35,7 @@ Ikona jest wpisana w `.desktop` pełną ścieżką, więc działa od razu (bez o
   - **Wszystkie pliki** – każdy dysk do rozwijania; zaznaczasz dowolne foldery i pliki.
   - **System i pakiety** – cache, kosz, Flatpak, stare jądra, nieużywane pakiety.
 
-  Lista „Dysk” filtruje po dysku. Wszystkie przełączniki (kosz, symulacja, dziennik, AI) są w **Ustawieniach**,
-  a wszystko inne na stronie **Ustawienia** (patrz niżej).
+  Lista „Dysk” filtruje po dysku. Wszystkie opcje (kosz, symulacja, dziennik, AI i reszta) są na stronie **Ustawienia** (patrz niżej).
   Twoje pliki, które sam zaznaczysz, domyślnie trafiają do kosza (`gio trash`) i wymagają potwierdzenia.
 
 ## Jak działa wykrywanie (zakładka Polecane)
@@ -105,15 +104,15 @@ uzasadnienie AI i podgląd zawartości. Przyciski: **Usuń**, **Zostaw** (domyś
 **Przerwij** (nic nie zostaje usunięte). Zamknięcie okna też przerywa. Wyłączysz to w Ustawienia → „Pytaj o każdą pozycję
 po kolei” (wróci jedno okno potwierdzenia dla całości).
 
-Ustawienia: strona **Ustawienia → AI** . Dla Unsloth Studio:
+Konfiguracja AI: strona **Ustawienia → AI**. Dla Unsloth Studio:
 1. uruchom model, np. `unsloth run --model unsloth/gemma-4-26B-A4B-it-GGUF:UD-Q4_K_XL`,
 2. w Studio: Settings → API → utwórz klucz (zaczyna się od `sk-unsloth-`),
 3. wpisz klucz w Ustawienia → AI i kliknij „Zapisz i sprawdź połączenie z AI” (adres wykrywany sam: porty 8888, 8080, 11434, 1234, 8000; inny w polu „adres”).
 Klucz zapisuje się w `~/.config/tidydisk/settings.json` (prawa 0600, tylko Ty; stary `ai.json` jest wczytywany automatycznie); możesz go też podać zmienną
 `FC_AI_KEY`. Działa też z `llama-server`, Ollamą i LM Studio.
 
-Bezpieczeństwo: model dostaje tylko metadane (ścieżka, rozmiar, wiek, nazwy plików obok), nigdy zawartość, i łączy się
-tylko z `127.0.0.1`. Może wyłącznie **zaznaczyć pole wyboru** - pliki „Nie ruszaj”, katalogi systemowe i `.ssh` są
+Bezpieczeństwo: model dostaje metadane (ścieżka, rozmiar, wiek, nazwy plików obok) oraz - jeśli nie wyłączysz „AI zagląda do zawartości plików” - krótki podgląd (nagłówek, początek tekstu, spis archiwum); pliki o nazwach wskazujących na dane poufne nie są otwierane. Łączy się
+tylko z `127.0.0.1`. Na komputerze, z którego korzysta więcej osób, wpisz adres serwera w „adres” (inaczej klucz API jest wysyłany do pierwszego odpowiadającego portu z listy). Może wyłącznie **zaznaczyć pole wyboru** - pliki „Nie ruszaj”, katalogi systemowe i `.ssh` są
 odrzucane niezależnie od jego odpowiedzi, a przed usunięciem zawsze jest okno potwierdzenia. Twoja ręczna zmiana
 zaznaczenia ma pierwszeństwo przed modelem. Pliki z „Twoich plików” zaznaczone przez AI trafiają do kosza.
 Pojedynczą pozycję możesz też zapytać przyciskiem **🤖 Zapytaj AI**.
@@ -249,12 +248,22 @@ Historia zmian: `CHANGELOG.md`.
 - `tidydisk status [--json] [--exit-code --min-free GB]` - wolne miejsce; z `--exit-code` kończy się kodem 1, gdy któryś dysk ma mniej wolnego niż próg (do skryptów i monitoringu). JSON ma pole `schema`.
 
 - `tidydisk ai [--mode ai_only] [--notify] [-q] [--wait-ai MIN]` - skan i ocena AI bez okna (to uruchamia timer); `ai --last` pokazuje wynik, `ai --export plik.csv` (albo `.json`) zapisuje zapamiętane oceny AI.
+- `tidydisk scan|analyze [--format text|json|csv]` - skan i propozycje bez okna; `tidydisk report [--json] [-o plik]` - raport HTML (albo JSON); `tidydisk notify [--min-free GB] [--min-reclaim GB] [--disk PUNKT]` - sprawdzenie dysku z powiadomieniem.
+- `tidydisk schedule enable|disable|status [--every daily|weekly|monthly] [--time HH:MM] [--ai]` - harmonogram (timer systemd użytkownika, tylko Linux).
+- `tidydisk config path|list|get|set|export|import`, `tidydisk rules`, `tidydisk history` - ustawienia, reguły i historia z terminala. Opcje globalne: `--config plik`, `-q`, `-V`. Kody wyjścia: 0 ok, 1 błąd, 2 złe użycie, 3 praca w tle już działa, 4 brak serwera AI.
 - `tidydisk changes` - co urosło lub przybyło od poprzedniego skanu.
 - `tidydisk diag [--out plik]` - zrzut diagnostyczny do wysłania razem z raportem.
 
 ## Pakiety
 
-`packaging/tidydisk.spec` buduje RPM (`rpmbuild -ba`). Instalacja z `install.sh` zostaje dla użytkownika bez roota.
+`packaging/tidydisk.spec` buduje RPM (`rpmbuild -ba`), `bash packaging/build-deb.sh` buduje `.deb` (Debian, Ubuntu, Mint); CI zapisuje gotowe pakiety jako artefakty (`rpm-fedora-44|45|rawhide`, `deb`, `tidydisk-windows-exe`). Instalacja z `install.sh` zostaje dla użytkownika bez roota (na Debianie: `sudo apt install python3-pyqt6`).
+
+### Gdzie program trzyma pliki
+
+| System | Ustawienia | Dane (pamięć AI, historia) |
+|---|---|---|
+| Linux | `~/.config/tidydisk/` | `~/.local/share/tidydisk/` |
+| Windows | `%APPDATA%\TidyDisk\` | `%LOCALAPPDATA%\TidyDisk\` |
 
 ## Licencja
 

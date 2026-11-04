@@ -1,5 +1,5 @@
 Name:           tidydisk
-Version:        2.19.5
+Version:        2.20.0
 Release:        1%{?dist}
 Summary:        Free up disk space safely, with optional local AI review
 License:        GPL-3.0-or-later
@@ -10,6 +10,7 @@ BuildRequires:  python3-devel
 BuildRequires:  desktop-file-utils
 Requires:       python3-pyqt6
 Requires:       polkit
+Requires:       hicolor-icon-theme
 Obsoletes:      fedora-cleaner < %{version}
 Provides:       fedora-cleaner = %{version}
 
@@ -45,7 +46,7 @@ install -Dm644 data/tidydisk.metainfo.xml %{buildroot}%{_metainfodir}/%{name}.me
 install -Dm644 data/org.tidydisk.admin-scan.policy %{buildroot}%{_datadir}/polkit-1/actions/org.tidydisk.admin-scan.policy
 # skaner administratora: kopia nalezaca do roota, generowana z kodu pakietu
 install -d %{buildroot}%{_libexecdir}/%{name}
-PYTHONPATH=. python3 -I -c '
+TIDYDISK_NO_MIGRATE=1 PYTHONPATH=. python3 -I -c '
 import sys; sys.path.insert(0, ".")
 from tidydisk import scanner, __version__
 sys.stdout.write(scanner.build_admin_source("/", "", (), argv=True, version=__version__))' > %{buildroot}%{_libexecdir}/%{name}/admin_scan.py
@@ -66,47 +67,9 @@ desktop-file-validate %{buildroot}%{_datadir}/applications/%{name}.desktop
 %{_libexecdir}/%{name}/
 
 %changelog
-* Wed Nov 04 2026 TidyDisk contributors - 2.19.5-1
-- Package for Fedora (RPM); see CHANGELOG.md
-
-* Wed Nov 04 2026 TidyDisk contributors - 2.16.0-1
-- Package for Fedora (RPM); see CHANGELOG.md
-
-* Wed Nov 04 2026 TidyDisk contributors - 2.15.0-1
-- Package for Fedora (RPM); see CHANGELOG.md
-
-* Wed Nov 04 2026 TidyDisk contributors - 2.14.0-1
-- Package for Fedora (RPM); see CHANGELOG.md
-
-* Wed Nov 04 2026 TidyDisk contributors - 2.13.1-1
-- Package for Fedora (RPM); see CHANGELOG.md
-
-* Wed Nov 04 2026 TidyDisk contributors - 2.13.0-1
-- Package for Fedora (RPM); see CHANGELOG.md
-
-* Wed Nov 04 2026 TidyDisk contributors - 2.12.0-1
-- Package for Fedora (RPM); see CHANGELOG.md
-
-* Wed Nov 04 2026 TidyDisk contributors - 2.11.0-1
-- Package for Fedora (RPM); see CHANGELOG.md
-
-* Wed Nov 04 2026 TidyDisk contributors - 2.10.1-1
-- Package for Fedora (RPM); see CHANGELOG.md
-
-* Wed Nov 04 2026 TidyDisk contributors - 2.10.0-1
-- Package for Fedora (RPM); see CHANGELOG.md
-
-* Wed Nov 04 2026 TidyDisk contributors - 2.9.3-1
-- Package for Fedora (RPM); see CHANGELOG.md
-
-* Wed Nov 04 2026 TidyDisk contributors - 2.9.2-1
-- Package for Fedora (RPM); see CHANGELOG.md
-
-* Wed Nov 04 2026 TidyDisk contributors - 2.9.1-1
-- Package for Fedora (RPM); see CHANGELOG.md
-
-* Wed Nov 04 2026 TidyDisk contributors - 2.9.0-1
-- Package for Fedora (RPM); see CHANGELOG.md
-
-* Tue Nov 03 2026 TidyDisk contributors - 2.8.1-1
-- Package for Fedora (RPM); see CHANGELOG.md
+* Wed Nov 04 2026 TidyDisk contributors <noreply@example.invalid> - 2.20.0-1
+- Audit fixes: race-free deletion, report masking, Windows console build
+* Wed Nov 04 2026 TidyDisk contributors <noreply@example.invalid> - 2.18.0-1
+- Renamed from fedora-cleaner (Obsoletes/Provides keep upgrades working)
+* Wed Nov 04 2026 TidyDisk contributors <noreply@example.invalid> - 2.16.0-1
+- See CHANGELOG.md

@@ -11,6 +11,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+from . import osal
+
 UNIT = "tidydisk-check"
 UNIT_AI = "tidydisk-ai"  # osobny timer: skan + ocena AI w tle (Etap B)
 INTERVALS = {"daily": "daily", "weekly": "weekly", "monthly": "monthly"}
@@ -60,6 +62,8 @@ def render_ai(every: str, at: str = "", mode: str = "") -> tuple:
 
 
 def enable_ai(every: str = "weekly", at: str = "", mode: str = "") -> str:
+    if osal.SYSTEM != "linux":
+        raise ValueError("Harmonogram (systemd) działa tylko na Linuksie; na Windows użyj Harmonogramu zadań (schtasks).")
     if every not in INTERVALS:
         raise ValueError("every: daily|weekly|monthly")
     d = unit_dir()
@@ -73,6 +77,8 @@ def enable_ai(every: str = "weekly", at: str = "", mode: str = "") -> str:
 
 
 def disable_ai() -> str:
+    if osal.SYSTEM != "linux":
+        raise ValueError("Harmonogram (systemd) działa tylko na Linuksie; na Windows użyj Harmonogramu zadań (schtasks).")
     _systemctl("disable", "--now", f"{UNIT_AI}.timer")
     d = unit_dir()
     for ext in ("service", "timer"):
@@ -104,6 +110,8 @@ def _systemctl(*a) -> int:
 
 
 def enable(every: str = "weekly", min_free_gb: int = 20, min_reclaim_gb: int = 5, auto_clean: bool = False, at: str = "") -> str:
+    if osal.SYSTEM != "linux":
+        raise ValueError("Harmonogram (systemd) działa tylko na Linuksie; na Windows użyj Harmonogramu zadań (schtasks).")
     if every not in INTERVALS:
         raise ValueError("every: daily|weekly|monthly")
     d = unit_dir()
@@ -117,6 +125,8 @@ def enable(every: str = "weekly", min_free_gb: int = 20, min_reclaim_gb: int = 5
 
 
 def disable() -> str:
+    if osal.SYSTEM != "linux":
+        raise ValueError("Harmonogram (systemd) działa tylko na Linuksie; na Windows użyj Harmonogramu zadań (schtasks).")
     _systemctl("disable", "--now", f"{UNIT}.timer")
     d = unit_dir()
     for ext in ("service", "timer"):

@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import os
 import shutil
+import stat
 import sys
 from pathlib import Path
 
@@ -114,3 +115,25 @@ def data_dir() -> Path:
     if SYSTEM == "macos":
         return Path.home() / "Library" / "Application Support" / "TidyDisk"
     return Path.home() / ".local" / "share" / APP_DIR
+
+
+# Flagi open(), ktorych nie ma na Windows (0 = brak efektu); wspolne dla calego programu
+O_NOFOLLOW = getattr(os, "O_NOFOLLOW", 0)
+O_NONBLOCK = getattr(os, "O_NONBLOCK", 0)
+O_BINARY = getattr(os, "O_BINARY", 0)
+
+
+def open_regular(path: str) -> int:
+    """Deskryptor ZWYKLEGO pliku (bez symlinku, bez FIFO/urzadzen), do odczytu; OSError, gdy to cos innego."""
+    st = os.lstat(path)
+    if not stat.S_ISREG(st.st_mode):
+        raise OSError("nie jest zwykłym plikiem")
+    return os.open(path, os.O_RDONLY | O_NOFOLLOW | O_NONBLOCK | O_BINARY)
+
+
+def pread(fd: int, n: int, offset: int) -> bytes:
+    """os.pread, a tam gdzie go nie ma (Windows) lseek + read."""
+    if hasattr(os, "pread"):
+        return os.pread(fd, n, offset)
+    os.lseek(fd, offset, os.SEEK_SET)
+    return os.read(fd, n)

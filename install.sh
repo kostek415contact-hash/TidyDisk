@@ -20,7 +20,7 @@ from tidydisk import scanner, __version__
 sys.stdout.write(scanner.build_admin_source("/", "", (), argv=True, version=__version__))' ) \
     | sudo install -m 755 -o root -g root /dev/stdin /usr/local/lib/tidydisk/admin_scan.py
   # regula polkit tylko dla tego jednego skryptu (tylko odczyt); bez niej pkexec tez dziala, z ogolnym pytaniem o haslo
-  if ! rpm -q tidydisk >/dev/null 2>&1; then  # przy pakiecie RPM regule dostarcza pakiet
+  if ! { rpm -q tidydisk || dpkg -s tidydisk; } >/dev/null 2>&1; then  # przy pakiecie RPM/DEB regule dostarcza pakiet
     sudo install -d -m 755 /usr/share/polkit-1/actions
     sudo install -m 644 -o root -g root "$here/data/org.tidydisk.admin-scan.policy" /usr/share/polkit-1/actions/org.tidydisk.admin-scan.policy
   fi
@@ -34,12 +34,13 @@ APPDIR="$PREFIX/share/tidydisk"
 
 if [[ "${SKIP_DEP_CHECK:-0}" != "1" ]] && ! /usr/bin/python3 -c 'import PyQt6.QtWidgets' 2>/dev/null; then
   echo "Brakuje PyQt6 (pakiet python3-pyqt6)."
-  read -rp "Zainstalowac teraz przez sudo dnf? [T/n] " ans
+  if command -v apt-get >/dev/null 2>&1 && ! command -v dnf >/dev/null 2>&1; then PKG_CMD="apt-get install -y"; else PKG_CMD="dnf install -y"; fi
+  read -rp "Zainstalowac teraz przez sudo ${PKG_CMD%% *}? [T/n] " ans || ans=n
   if [[ "$ans" =~ ^[nN]$ ]]; then
-    echo "Przerwano. Zainstaluj: sudo dnf install python3-pyqt6"
+    echo "Przerwano. Zainstaluj: sudo ${PKG_CMD% -y} python3-pyqt6"
     exit 1
   fi
-  sudo dnf install -y python3-pyqt6
+  sudo $PKG_CMD python3-pyqt6
 fi
 
 echo "Instaluje do $PREFIX ..."
@@ -83,7 +84,7 @@ command -v kbuildsycoca6          >/dev/null && kbuildsycoca6 >/dev/null 2>&1 ||
 command -v kbuildsycoca5          >/dev/null && kbuildsycoca5 >/dev/null 2>&1 || true
 
 if [[ "${SKIP_ADMIN:-0}" != "1" ]]; then
-  read -rp "Zainstalować skaner administratora (sudo, potrzebny do skanu całego systemu)? [T/n] " ans
+  read -rp "Zainstalować skaner administratora (sudo, potrzebny do skanu całego systemu)? [T/n] " ans || ans=n
   [[ "$ans" =~ ^[nN]$ ]] || install_admin
 fi
 

@@ -16,10 +16,10 @@ command -v update-desktop-database >/dev/null && update-desktop-database "$PREFI
 command -v kbuildsycoca6          >/dev/null && kbuildsycoca6 >/dev/null 2>&1 || true
 
 if [[ -e /usr/local/lib/tidydisk ]]; then
-  read -rp "Usunąć też skaner administratora (sudo)? [T/n] " ans
+  read -rp "Usunąć też skaner administratora (sudo)? [T/n] " ans || ans=n
   if ! [[ "$ans" =~ ^[nN]$ ]]; then
     sudo rm -rf /usr/local/lib/tidydisk
-    rpm -q tidydisk >/dev/null 2>&1 || sudo rm -f /usr/share/polkit-1/actions/org.tidydisk.admin-scan.policy
+    { rpm -q tidydisk || dpkg -s tidydisk; } >/dev/null 2>&1 || sudo rm -f /usr/share/polkit-1/actions/org.tidydisk.admin-scan.policy
   fi
 fi
 

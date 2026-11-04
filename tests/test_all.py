@@ -2169,6 +2169,11 @@ with _tf.TemporaryDirectory() as _h:
     check(not any("Login Data" in pp or "Documents" in pp for pp in _paths), "windows skan: hasla i Dokumenty nie trafiaja na liste")
     check({c.key for c in _cats} == {"temp", "browsers", "shaders", "dev"}, "windows skan: kategorie temp/przegladarki/shadery/dev")
     check(all(e.rating in ("safe", "review") and e.size > 0 for c in _cats for e in c.entries), "windows skan: tylko oceny safe/review")
+    _cats2 = sw_.scan(_h, size_of=_sz, running={"chrome"})
+    _ce = [e for c in _cats2 for e in c.entries]
+    check(all(e.kind == "contents" for e in _ce), "windows skan: pozycje to zawartosc katalogu (nie sam katalog)")
+    check(any("Default" in e.label for e in _ce) and any("Profile 1" in e.label for e in _ce), "windows skan: nazwa profilu przegladarki w etykiecie")
+    check(all(e.warn for e in _ce if "Chrome" in e.label) and not any(e.warn for e in _ce if "Chrome" not in e.label), "windows skan: ostrzezenie tylko dla dzialajacej przegladarki")
     _real = os.path.join(_h, "AppData", "Local", "Temp", "a.tmp")
     _old = osal_w.SYSTEM
     osal_w.SYSTEM = "windows"
@@ -2181,7 +2186,7 @@ with _tf.TemporaryDirectory() as _h:
         osal_w.SYSTEM = _old
 
 # ---- zmiana nazwy: migracja ze starej nazwy
-from tidydisk import legacy as lg_
+from tidydisk import legacy as lg_, fsutil as fsutil_w
 with _tf.TemporaryDirectory() as _mh:
     _mp = Path(_mh)
     (_mp / ".config/fedora-cleaner").mkdir(parents=True); (_mp / ".config/fedora-cleaner/settings.json").write_text('{"theme":"modern"}')
@@ -2231,6 +2236,108 @@ try:
     check(sn_.detect(str(_fm))["btrfs"] is True, "migawki: Linux bez zmian")
 finally:
     osal_w.SYSTEM = _o
+
+# ---- bezpieczenstwo usuwania (audyt): koncowy '/', wyscig TOCTOU, RecursionError
+check(core.is_user_target(str(HOME / ".ssh"))[0] is False and core.is_user_target(str(HOME / ".ssh") + "/")[0] is False
+      and core.is_user_target(str(HOME / ".ssh") + "//")[0] is False, "bezpieczenstwo: koncowy '/' nie omija ochrony ~/.ssh")
+def _toctou(hook_name):
+    base = HOME / ".cache" / "toctou_app"; shutil.rmtree(base, ignore_errors=True)
+    (base / "cache").mkdir(parents=True); (base / "cache" / "f").write_text("x")
+    victim = HOME / "Documents" / "toctou_victim"; victim.mkdir(parents=True, exist_ok=True); (victim / "f").write_text("vip")
+    orig = getattr(core, hook_name)
+    def swap():
+        (base / "cache").rename(base / "cache_real"); (base / "cache").symlink_to(victim)
+    def hooked(*a, **k):
+        r = orig(*a, **k)
+        if r and not getattr(hooked, "done", False):
+            hooked.done = True; swap()
+        return r
+    setattr(core, hook_name, hooked)
+    errs = []
+    try:
+        core.remove_path(str(base / "cache" / "f"), errs)
+    finally:
+        setattr(core, hook_name, orig)
+    return (victim / "f").exists(), errs
+_ok1, _e1 = _toctou("is_safe_target")
+check(_ok1 and _e1, "bezpieczenstwo: podmiana katalogu na symlink po is_safe_target nie kasuje celu poza dozwolonymi")
+_ok2, _e2 = _toctou("_allowed_parent")
+check(_ok2 and _e2, "bezpieczenstwo: podmiana po sprawdzeniu korzeni konczy sie bledem, plik poza celem zostaje")
+shutil.rmtree(HOME / ".cache" / "toctou_app", ignore_errors=True); shutil.rmtree(HOME / "Documents" / "toctou_victim", ignore_errors=True)
+_deep = HOME / ".cache" / "deepapp"; shutil.rmtree(_deep, ignore_errors=True)
+_p = _deep
+for _i in range(40):
+    _p = _p / "d"
+_p.mkdir(parents=True)
+_lim = sys.getrecursionlimit(); _de = []
+try:
+    sys.setrecursionlimit(len(__import__("inspect").stack()) + 25)
+    core.remove_path(str(_deep), _de)
+finally:
+    sys.setrecursionlimit(_lim)
+check(any("zagnieżdżony" in e for e in _de), "bezpieczenstwo: RecursionError nie przerywa czyszczenia (zapisany w bledach)")
+shutil.rmtree(_deep, ignore_errors=True)
+# Windows: kazdy prymityw usuwania zablokowany
+_ow = osal_w.SYSTEM
+try:
+    osal_w.SYSTEM = "windows"
+    _wf = HOME / ".cache" / "winblock"; (_wf).mkdir(parents=True, exist_ok=True); (_wf / "a").write_text("x")
+    _we = []
+    core.remove_path(str(_wf / "a"), _we); core.rm_tree(str(_wf), _we); core.remove_contents(str(_wf), _we); core.trash_path(str(_wf / "a"), _we)
+    check((_wf / "a").exists() and len(_we) == 4, "windows: remove_path, rm_tree, remove_contents i trash_path zablokowane")
+finally:
+    osal_w.SYSTEM = _ow
+shutil.rmtree(HOME / ".cache" / "winblock", ignore_errors=True)
+
+# ---- Windows: brak os.pread/O_NOFOLLOW/fchmod nie wywala skrotow plikow, podgladu i zapisu ustawien
+_hf = HOME / "hash_a.bin"; _hf.write_bytes(os.urandom(5_000_000))
+_h_full0, _h_part0 = scanner._file_hash(str(_hf), 5_000_000, False), scanner._file_hash(str(_hf), 5_000_000, True)
+_saved = {n: getattr(os, n) for n in ("pread", "fchmod") if hasattr(os, n)}
+try:
+    for n in _saved:
+        delattr(os, n)
+    scanner.HASH_CACHE.clear()
+    check(scanner._file_hash(str(_hf), 5_000_000, False) == _h_full0 and scanner._file_hash(str(_hf), 5_000_000, True) == _h_part0,
+          "windows: skrot pliku bez os.pread daje ten sam wynik")
+    check(st_.save(st_.load()) is True, "windows: zapis ustawien bez os.fchmod")
+    _fd = osal_w.open_regular(str(_hf)); os.close(_fd)
+    check(osal_w.pread.__doc__ is not None, "windows: osal.pread dostepne")
+finally:
+    for n, f in _saved.items():
+        setattr(os, n, f)
+_hf.unlink()
+
+# ---- audyt: raport maskuje nazwy w Twoich plikach, CSV bez formul, skrypt roota, detect, notify
+_mine_dir = HOME / "Documents" / "Faktury"; _mine_dir.mkdir(parents=True, exist_ok=True)
+_mine_file = _mine_dir / "Faktura Jan Kowalski.pdf"; _mine_file.write_bytes(b"x" * 3000)
+_me = core.Entry("Faktura Jan Kowalski.pdf", 3000, "path", [str(_mine_file)], rating=kb.MINE, user_pick=True, checked=True, what="Twój plik", why="wybrane ręcznie")
+_cat = core.Category("mine", "Twoje pliki", "", False, [_me])
+_md = report.build_markdown([_cat], [], r, [], report.Anon())
+_csvt = report.build_csv([_cat], [], report.Anon())
+check("Kowalski" not in _md and "Faktury" not in _md, "raport: nazwy w Twoich plikach zamaskowane (markdown)")
+check("Kowalski" not in _csvt and "Faktury" not in _csvt, "raport: nazwy w Twoich plikach zamaskowane (CSV)")
+_ev = core.Entry("=cmd|' /C calc'!A0", 10, "path", [str(HOME / ".cache" / "ev")], rating=kb.SAFE, what="x", why="y")
+_csve = report.build_csv([core.Category("cache", "c", "", False, [_ev])], [], report.Anon())
+check("'=cmd" in _csve and ";=cmd" not in _csve, "csv: formula w nazwie zneutralizowana")
+check(fsutil_w.csv_safe("") == "" and fsutil_w.csv_safe("=1+1") == "'=1+1" and fsutil_w.csv_safe("zwykly") == "zwykly", "csv_safe: puste zostaje puste, formula dostaje apostrof")
+_sh = core.build_root_script([core.Entry("a", 1, "root_sh", cmd="false", root=True), core.Entry("b", 1, "root_sh", cmd="true", root=True)])
+import subprocess as _sp
+check(_sp.run(["bash", "-c", _sh], capture_output=True).returncode == 1, "skrypt roota: blad kroku nie jest ukryty przez udany ostatni")
+check(_sp.run(["bash", "-c", core.build_root_script([core.Entry("b", 1, "root_sh", cmd="true", root=True)])], capture_output=True).returncode == 0, "skrypt roota: sukces = kod 0")
+_od, _om = ai.list_models, None
+def _fake_list(host, timeout=2.0):
+    if host.endswith(":8080"):
+        raise PermissionError("403")
+    return ["m1"] if host.endswith(":11434") else None
+ai.list_models = _fake_list
+try:
+    settings.update({"ai_url": ""}); _hh = ai.HOST; ai.HOST = ""
+    check(ai.detect()[0] == "http://127.0.0.1:11434", "ai.detect: obca usluga z 403 nie zaslania prawdziwego serwera")
+finally:
+    ai.list_models = _od; ai.HOST = _hh
+from tidydisk import viewmodel as vm_w
+check(vm_w.date_text(2 ** 62) == "—", "viewmodel: absurdalny mtime nie wywala")
+shutil.rmtree(HOME / "Documents" / "Faktury", ignore_errors=True)
 
 print("WSZYSTKO OK" if not fails else f"BLEDY: {len(fails)}")
 sys.exit(1 if fails else 0)

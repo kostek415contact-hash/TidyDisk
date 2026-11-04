@@ -1,6 +1,6 @@
 """TidyDisk - czyszczenie dysku (Linux, Windows): bezpiecznie, z wyjaśnieniem każdej pozycji."""
 
-__version__ = "2.19.5"
+__version__ = "2.20.0"
 
 from . import legacy as _legacy  # noqa: E402
 
