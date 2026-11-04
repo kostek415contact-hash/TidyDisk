@@ -1,0 +1,75 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        fedora: ["43", "44", "rawhide"]
+    continue-on-error: ${{ matrix.fedora == 'rawhide' }}  # rawhide informuje, ale nie blokuje
+    container: fedora:${{ matrix.fedora }}
+    env:
+      QT_QPA_PLATFORM: offscreen
+    steps:
+      - name: Zaleznosci
+        run: dnf install -y python3 python3-pyqt6 python3-pyflakes xorg-x11-server-Xvfb git rpm-build desktop-file-utils libappstream-glib
+      - uses: actions/checkout@v4
+      - name: Testy logiki (bez Qt)
+        run: python3 -I tests/test_all.py
+      - name: Smoke test Qt (offscreen) ze zrzutami ekranu stron
+        run: SMOKE_SHOTS=shots python3 tests/smoke_qt.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: zrzuty-fedora-${{ matrix.fedora }}
+          path: shots/
+          if-no-files-found: ignore
+      - name: pyflakes
+        run: python3 -m pyflakes tidydisk
+      - name: Pliki .desktop i metainfo
+        run: |
+          desktop-file-validate data/tidydisk.desktop
+          appstream-util validate-relax data/tidydisk.metainfo.xml
+      - name: Budowa RPM
+        run: |
+          mkdir -p ~/rpmbuild/SOURCES
+          tar czf ~/rpmbuild/SOURCES/tidydisk-$(python3 -c 'import tidydisk as f; print(f.__version__)').tar.gz --transform "s,^\.,tidydisk-$(python3 -c 'import tidydisk as f; print(f.__version__)')," --exclude=.git .
+          rpmbuild -ba packaging/tidydisk.spec
+  deb:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Testy logiki (bez Qt)
+        run: python3 -I tests/test_all.py
+      - name: Budowa .deb
+        run: bash packaging/build-deb.sh dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: deb
+          path: dist/*.deb
+  windows-smoke:  # tylko import modulow i testy jednostkowe warstwy systemowej; pelne testy zakladaja Linuksa
+    runs-on: windows-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Import modulow bez Qt
+        run: python -I -c "import tidydisk, tidydisk.osal, tidydisk.core, tidydisk.scanner, tidydisk.kb, tidydisk.report; print(tidydisk.osal.SYSTEM)"
+      - name: Skan Windows na prawdziwym systemie (tylko odczyt)
+        run: python -m tidydisk status
+      - name: Budowa .exe (PyInstaller)
+        run: |
+          pip install pyinstaller
+          powershell -File packaging/windows/build-exe.ps1
+          dist\tidydisk.exe --version
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tidydisk-windows-exe
+          path: dist/tidydisk.exe
