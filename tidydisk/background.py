@@ -16,7 +16,7 @@ from pathlib import Path
 from . import ai, core, fsutil, osal, pipeline, schedule, settings
 from .progress import ProgressTracker
 
-DIR = Path.home() / ".local/share/tidydisk"
+DIR = osal.data_dir()
 LOCK = DIR / "background.lock"
 LASTRUN = DIR / "lastrun.json"
 EXIT_OK, EXIT_ERR, EXIT_BUSY, EXIT_NO_AI = 0, 1, 3, 4

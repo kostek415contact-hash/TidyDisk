@@ -1,4 +1,4 @@
-"""Dyski i partycje (lsblk). Bez zaleznosci od Qt."""
+"""Dyski i partycje (lsblk na Linuksie, litery dyskow na Windows). Bez zaleznosci od Qt."""
 from __future__ import annotations
 
 import json
@@ -155,7 +155,49 @@ def mount_labels(found=None) -> dict:
     return out
 
 
+_WIN_TYPES = {2: "Wymienny (USB)", 3: "Dysk lokalny", 4: "Sieciowy", 5: "Napęd optyczny", 6: "RAM"}
+
+
+def list_disks_windows(letters=None, kind_of=None, volume_info=None, usage=_usage) -> list:
+    """Windows: kazda litera dysku to jeden 'dysk' z jedna 'partycja'. Parametry (letters, kind_of, volume_info) to
+    wtyczki do testow; domyslnie ctypes (GetLogicalDrives, GetDriveTypeW, GetVolumeInformationW)."""
+    import ctypes
+    k32 = getattr(ctypes, "windll", None)
+    k32 = k32.kernel32 if k32 else None
+    if letters is None:
+        if k32 is None:
+            return []
+        mask = k32.GetLogicalDrives()
+        letters = [chr(65 + i) for i in range(26) if mask & (1 << i)]
+    if kind_of is None:
+        kind_of = lambda root: k32.GetDriveTypeW(root) if k32 else 3
+    if volume_info is None:
+        def volume_info(root):
+            if k32 is None:
+                return "", ""
+            name = ctypes.create_unicode_buffer(261)
+            fs = ctypes.create_unicode_buffer(261)
+            ok = k32.GetVolumeInformationW(root, name, 261, None, None, None, fs, 261)
+            return (name.value, fs.value) if ok else ("", "")
+    out = []
+    for ch in letters:
+        root = f"{ch}:\\"
+        t = kind_of(root)
+        if t not in _WIN_TYPES or t in (5, 6):
+            continue
+        label, fstype = volume_info(root)
+        used, free = usage(root)
+        size = used + free
+        if size <= 0:
+            continue
+        part = Part(name=f"{ch}:", path=root, size=size, fstype=fstype, label=label, mounts=[root], used=used, free=free)
+        out.append(Disk(name=f"{ch}:", path=root, size=size, model=label, kind=_WIN_TYPES[t], parts=[part]))
+    return out
+
+
 def list_disks() -> list:
+    if os.name == "nt":
+        return list_disks_windows()
     try:
         r = subprocess.run(
             ["lsblk", "-J", "-b", "-o", LSBLK_COLS],

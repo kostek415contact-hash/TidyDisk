@@ -92,3 +92,26 @@ def disk_usage(path: str) -> tuple:
         return total - st.f_bfree * st.f_frsize, total
     u = shutil.disk_usage(path)
     return u.used, u.total
+
+
+APP_DIR = "tidydisk"
+
+
+def config_dir() -> "Path":
+    """Katalog ustawien: Linux ~/.config/tidydisk, Windows %APPDATA%\\TidyDisk, macOS ~/Library/Application Support/TidyDisk."""
+    from pathlib import Path
+    if is_windows():
+        return Path(os.environ.get("APPDATA") or Path.home() / "AppData" / "Roaming") / "TidyDisk"
+    if SYSTEM == "macos":
+        return Path.home() / "Library" / "Application Support" / "TidyDisk"
+    return Path.home() / ".config" / APP_DIR
+
+
+def data_dir() -> "Path":
+    """Katalog danych (pamiec AI, historia, cache): Linux ~/.local/share/tidydisk, Windows %LOCALAPPDATA%\\TidyDisk."""
+    from pathlib import Path
+    if is_windows():
+        return Path(os.environ.get("LOCALAPPDATA") or Path.home() / "AppData" / "Local") / "TidyDisk"
+    if SYSTEM == "macos":
+        return Path.home() / "Library" / "Application Support" / "TidyDisk"
+    return Path.home() / ".local" / "share" / APP_DIR

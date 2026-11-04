@@ -10,10 +10,10 @@ import math
 import os
 import urllib.parse
 
-from . import rules
+from . import osal, rules
 
-FILE = "~/.config/tidydisk/settings.json"
-LEGACY_AI_FILE = "~/.config/tidydisk/ai.json"
+FILE = "~/.config/tidydisk/settings.json" if osal.SYSTEM == "linux" else str(osal.config_dir() / "settings.json")
+LEGACY_AI_FILE = "~/.config/tidydisk/ai.json" if osal.SYSTEM == "linux" else str(osal.config_dir() / "ai.json")
 
 # (klucz, domyslna wartosc, minimum, maksimum) - dla liczb; dla reszty min/max = None
 SPEC = {

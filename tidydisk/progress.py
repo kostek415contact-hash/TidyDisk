@@ -5,7 +5,7 @@ import json
 import time
 from pathlib import Path
 
-from . import fsutil
+from . import fsutil, osal
 
 
 def fmt_eta(sec: float) -> str:
@@ -47,7 +47,7 @@ class ProgressTracker:
         return int(f * 100), fmt_eta(self.smooth)
 
 
-SCANSTATS = Path.home() / ".local/share/tidydisk/scanstats.json"
+SCANSTATS = osal.data_dir() / "scanstats.json"
 
 
 def load_scanstats() -> dict:

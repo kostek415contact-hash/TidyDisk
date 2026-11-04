@@ -5,7 +5,7 @@ import threading
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
-from . import changes, core, scanner, settings
+from . import changes, core, osal, scanner, settings
 from .progress import load_scanstats, save_scanstats
 
 
@@ -14,7 +14,7 @@ def scan_all(cfg: dict, cancel=None, report=None, on_merge=None):
     jest wolane przy postepie; ulamek 0..1 albo -1 gdy nieznany."""
     cancel = cancel or (lambda: False)
     pure = cfg["search_mode"] == "ai_only"  # tylko AI: zadnego oceniania, duplikatow ani wersji
-    hc = str(Path.home() / ".local/share/tidydisk/hashcache.json")
+    hc = str(osal.data_dir() / "hashcache.json")
     if not pure:
         scanner.load_hash_cache(hc)  # kolejne skany nie licza od nowa skrotow niezmienionych plikow
     roots = []

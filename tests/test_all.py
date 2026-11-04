@@ -145,15 +145,16 @@ check(K2.classify_file("/mnt/SSD/Gry/save.dat").rating == kb.MINE, "kb: pliki na
 check(K2.classify_file("/mnt/SSD/.Trash-1000/files/x").rating == kb.SAFE, "kb: kosz na dysku danych = bezpieczne")
 check(K2.classify_file("/mnt/SSD/System Volume Information/x").rating == kb.KEEP, "kb: dane Windows = nie ruszaj")
 check("kthreadd" not in core.running_names(), "core: watki jadra nie sa 'dzialajacymi programami'")
-os.makedirs("/mnt/fc-test/.Trash-%d/files" % os.getuid(), exist_ok=True)
-Path("/mnt/fc-test/.Trash-%d/files/stary.iso" % os.getuid()).write_bytes(os.urandom(900_000))
-vc = core.volume_trash_categories(found, lab)
-check(len(vc) == 1 and vc[0].entries[0].disk.startswith("sda") and vc[0].entries[0].size > 800_000
-      and not vc[0].entries[0].checked, "core: kosz na drugim dysku (niezaznaczony, z nazwa dysku)")
-logs2 = []
-core.run_clean(vc[0].entries, False, logs2.append)
-check(not Path("/mnt/fc-test/.Trash-%d/files/stary.iso" % os.getuid()).exists(), "core: czyszczenie kosza na drugim dysku")
-shutil.rmtree("/mnt/fc-test", ignore_errors=True)
+if os.access("/mnt", os.W_OK):  # bez roota (np. CI na Ubuntu) pomijamy test kosza na drugim dysku
+    os.makedirs("/mnt/fc-test/.Trash-%d/files" % os.getuid(), exist_ok=True)
+    Path("/mnt/fc-test/.Trash-%d/files/stary.iso" % os.getuid()).write_bytes(os.urandom(900_000))
+    vc = core.volume_trash_categories(found, lab)
+    check(len(vc) == 1 and vc[0].entries[0].disk.startswith("sda") and vc[0].entries[0].size > 800_000
+          and not vc[0].entries[0].checked, "core: kosz na drugim dysku (niezaznaczony, z nazwa dysku)")
+    logs2 = []
+    core.run_clean(vc[0].entries, False, logs2.append)
+    check(not Path("/mnt/fc-test/.Trash-%d/files/stary.iso" % os.getuid()).exists(), "core: czyszczenie kosza na drugim dysku")
+    shutil.rmtree("/mnt/fc-test", ignore_errors=True)
 (HOME / ".cache/bigcache").mkdir(); (HOME / ".cache/bigcache/x").write_bytes(os.urandom(2_000_000))
 core.BIG_CACHE = 1_500_000
 cats_big = core.scan()
@@ -2198,6 +2199,26 @@ with _tf.TemporaryDirectory() as _ud:
     check(_done == ["tidydisk-ai"] and not (_u / "fedora-cleaner-ai.timer").exists() and "-m tidydisk ai" in (_u / "tidydisk-ai.service").read_text(), "nazwa: stary timer przepisany na nowy")
     check(("disable", "--now", "fedora-cleaner-ai.timer") in _calls and ("enable", "--now", "tidydisk-ai.timer") in _calls, "nazwa: stary timer wylaczony, nowy wlaczony")
     check(lg_.migrate_units(_u, lambda *a: 0) == [], "nazwa: migracja jednostek jest idempotentna")
+
+# ---- katalogi osal (Windows/macOS/Linux) i dyski Windows
+from tidydisk import disks as dk_
+_old_sys = osal_w.SYSTEM
+try:
+    osal_w.SYSTEM = "windows"
+    _env0 = dict(os.environ)
+    os.environ["APPDATA"] = "C:\\Users\\Me\\AppData\\Roaming"; os.environ["LOCALAPPDATA"] = "C:\\Users\\Me\\AppData\\Local"
+    check(str(osal_w.config_dir()).endswith("TidyDisk") and "Roaming" in str(osal_w.config_dir()), "osal: Windows - ustawienia w %APPDATA%\\TidyDisk")
+    check("Local" in str(osal_w.data_dir()) and str(osal_w.data_dir()).endswith("TidyDisk"), "osal: Windows - dane w %LOCALAPPDATA%\\TidyDisk")
+    osal_w.SYSTEM = "linux"
+    check(str(osal_w.data_dir()).endswith(".local/share/tidydisk") and str(osal_w.config_dir()).endswith(".config/tidydisk"), "osal: Linux - sciezki jak dawniej")
+finally:
+    osal_w.SYSTEM = _old_sys
+    os.environ.clear(); os.environ.update(_env0)
+_wd = dk_.list_disks_windows(letters=["C", "D", "E", "F"], kind_of=lambda r: {"C:\\": 3, "D:\\": 2, "E:\\": 5, "F:\\": 3}[r],
+                             volume_info=lambda r: ("System", "NTFS"), usage=lambda r: (0, 0) if r.startswith("F") else (60, 40))
+check([d.name for d in _wd] == ["C:", "D:"] and _wd[0].parts[0].fstype == "NTFS" and _wd[0].size == 100, "dyski Windows: litery, bez napedu optycznego i pustego")
+check(_wd[1].kind.startswith("Wymienny") and _wd[0].parts[0].mounts == ["C:\\"], "dyski Windows: typ i punkt montowania")
+check(dk_.mount_labels(_wd).get("C:\\", "").startswith("C: ·"), "dyski Windows: etykieta dysku w raporcie")
 
 print("WSZYSTKO OK" if not fails else f"BLEDY: {len(fails)}")
 sys.exit(1 if fails else 0)

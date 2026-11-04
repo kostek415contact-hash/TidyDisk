@@ -19,7 +19,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from . import ai, core, history, pipeline, preview, scanner, settings, simimg, spacelog, treemap
+from . import ai, core, history, osal, pipeline, preview, scanner, settings, simimg, spacelog, treemap
 from .progress import ProgressTracker, fmt_eta, load_scanstats, save_scanstats  # noqa: F401 (reeksport)
 from .core import fmt_size
 from .viewmodel import rating_color, RATING_GLYPH
@@ -711,7 +711,7 @@ class PhotoWorker(QThread):
         import os
         try:
             files = self._files()
-            cache_path = str(Path.home() / ".local/share/tidydisk/photohash.json")
+            cache_path = str(osal.data_dir() / "photohash.json")
             cache = simimg.load_cache(cache_path)
             keep: set = set()
             info: dict = {}

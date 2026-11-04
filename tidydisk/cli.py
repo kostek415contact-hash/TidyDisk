@@ -362,7 +362,7 @@ def main(argv=None) -> int:
         free = min((d["total"] - d["used"] for d in disks.values()), default=0)
         text = schedule.should_notify(free, data["safe_reclaimable"], a.min_free, a.min_reclaim)
         if text:
-            state = os.path.expanduser("~/.local/share/tidydisk/notify.json")
+            state = str(osal.data_dir() / "notify.json")
             last = 0.0
             try:
                 with open(state, encoding="utf-8") as f:

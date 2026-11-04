@@ -759,7 +759,7 @@ class CleanupPage(QWidget):
         self.sizes: dict = {}
         self._guard = False
         self._adv_text = "Analiza plików jeszcze nie ruszyła."
-        self.learner = learn.Learner(Path(core.HOME) / ".local" / "share" / "tidydisk")
+        self.learner = learn.Learner(osal.data_dir())
         lay = QVBoxLayout(self)
         lay.setContentsMargins(0, 0, 0, 0)
         lay.setSpacing(10)

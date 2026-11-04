@@ -8,12 +8,14 @@ import time
 import urllib.parse
 from pathlib import Path
 
+from . import osal
+
 MAX_RUNS = 200
 MAX_ITEMS = 500
 
 
 def default_dir() -> Path:
-    return Path.home() / ".local" / "share" / "tidydisk"
+    return osal.data_dir()
 
 
 def _file(directory) -> Path:

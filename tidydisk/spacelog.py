@@ -6,12 +6,14 @@ import os
 import time
 from pathlib import Path
 
+from . import osal
+
 MAX_POINTS = 2000
 MIN_GAP = 3600  # nie czesciej niz raz na godzine
 
 
 def _file(directory) -> Path:
-    return Path(directory or Path.home() / ".local" / "share" / "tidydisk") / "space.json"
+    return Path(directory or osal.data_dir()) / "space.json"
 
 
 def load(directory=None) -> list:

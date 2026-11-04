@@ -1,5 +1,16 @@
 # Historia zmian
 
+## 2.19.1 - Poprawki CI
+
+- Job `windows-smoke`: import modułów bez `-I` (z `-I` Python nie widzi katalogu repozytorium).
+- Testy: blok wymagający zapisu w `/mnt` (kosz na drugim dysku) jest pomijany bez roota (job `deb` na Ubuntu). Testy sprawdzone także jako zwykły użytkownik.
+
+## 2.19.0 - Windows: katalogi i dyski, test przez Wine
+
+- `osal.config_dir()` / `osal.data_dir()`: Windows `%APPDATA%\\TidyDisk` i `%LOCALAPPDATA%\\TidyDisk`, Linux bez zmian (`~/.config/tidydisk`, `~/.local/share/tidydisk`); wszystkie moduły używają ich zamiast wpisanych na sztywno ścieżek.
+- Lista dysków na Windows (litery dysków, typ, system plików, zajętość) zamiast `lsblk`.
+- `tools/test-windows-wine.sh`: uruchomienie wersji Windows na Linuksie przez Wine (nie sprawdzone w tym środowisku); README: trzy sposoby testu bez Windowsa.
+
 ## 2.18.0 - Nowa nazwa: TidyDisk (dawniej Fedora Cleaner)
 
 - Program nazywa się **TidyDisk**: polecenie `tidydisk`, pakiet `tidydisk` (.rpm/.deb), moduł `tidydisk`, reguła polkit `org.tidydisk.admin-scan`, katalogi `~/.config/tidydisk` i `~/.local/share/tidydisk`.

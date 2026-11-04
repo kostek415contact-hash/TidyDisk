@@ -11,9 +11,9 @@ import threading
 import time
 from pathlib import Path
 
-from . import fsutil
+from . import fsutil, osal
 
-PATH = Path.home() / ".local/share/tidydisk/aicache.json"
+PATH = osal.data_dir() / "aicache.json"
 MAX_ENTRIES = 300_000
 
 

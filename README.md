@@ -238,6 +238,12 @@ Historia zmian: `CHANGELOG.md`.
 - **.rpm** (Fedora): `packaging/tidydisk.spec`. **.deb** (Debian, Ubuntu, Mint): `bash packaging/build-deb.sh` - instaluje program i skaner; czyszczenie cache APT działa, a funkcje oparte na `dnf`/`rpm` (jądra, niepotrzebne pakiety) tylko na Fedorze (na Debianie nie są proponowane). **.sh**: `install.sh`.
 - **Windows (.exe)**: skan i raport z rozpoznawaniem znanych miejsc (Temp, cache przeglądarek, shadery, narzędzia programistyczne) - **tylko odczyt, niczego nie usuwa** (usuwanie zablokowane w kodzie do czasu testów na prawdziwym Windows 11). Budowa: `packaging/windows/build-exe.ps1` (PyInstaller; CI zapisuje `tidydisk.exe` jako artefakt). Użycie: `tidydisk.exe scan` / `status` / `report`. Okno (PyQt6) na Windows jeszcze nie jest sprawdzone.
 
+### Sprawdzenie wersji Windows bez Windowsa
+
+1. **Wine** (najszybciej, na Fedorze): `sudo dnf install wine`, potem `bash tools/test-windows-wine.sh` - pobiera Pythona dla Windows i uruchamia skan oraz listę dysków. To nie jest prawdziwy Windows, ale wychwytuje błędy w kodzie.
+2. **GitHub Actions**: po wypchnięciu repozytorium job `windows-smoke` buduje `tidydisk.exe` na prawdziwym Windows i zapisuje go jako artefakt do pobrania.
+3. **Maszyna wirtualna**: `sudo dnf install virt-manager`, darmowy obraz Windows 11 Enterprise (90 dni) z Microsoft Evaluation Center - tam uruchom `.exe` z kroku 2. Najpewniejszy test, przed włączeniem usuwania.
+
 ## Terminal: polecenia pomocnicze
 - `tidydisk clean --plan plan.json` zapisuje plan (bez poleceń i pakietów, nic nie usuwa); `clean --apply plan.json [--yes]` skanuje od nowa i wykonuje tylko te pozycje z planu, które nadal są bezpieczne, mają te same ścieżki i nie urosły.
 - `tidydisk status [--json] [--exit-code --min-free GB]` - wolne miejsce; z `--exit-code` kończy się kodem 1, gdy któryś dysk ma mniej wolnego niż próg (do skryptów i monitoringu). JSON ma pole `schema`.

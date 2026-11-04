@@ -5,9 +5,9 @@ import json
 import time
 from pathlib import Path
 
-from . import fsutil
+from . import fsutil, osal
 
-DIR = Path.home() / ".local/share/tidydisk"
+DIR = osal.data_dir()
 SNAPSHOT = DIR / "snapshot.json"
 LAST = DIR / "changes.json"
 MIN_BYTES = 100 * 1024 * 1024  # mniejsze zmiany pomijamy
