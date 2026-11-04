@@ -158,7 +158,7 @@ def mount_labels(found=None) -> dict:
 _WIN_TYPES = {2: "Wymienny (USB)", 3: "Dysk lokalny", 4: "Sieciowy", 5: "Napęd optyczny", 6: "RAM"}
 
 
-def list_disks_windows(letters=None, kind_of=None, volume_info=None, usage=_usage) -> list:
+def list_disks_windows(letters=None, kind_of=None, volume_info=None, usage=_usage, remote_of=None) -> list:
     """Windows: kazda litera dysku to jeden 'dysk' z jedna 'partycja'. Parametry (letters, kind_of, volume_info) to
     wtyczki do testow; domyslnie ctypes (GetLogicalDrives, GetDriveTypeW, GetVolumeInformationW)."""
     import ctypes
@@ -179,6 +179,15 @@ def list_disks_windows(letters=None, kind_of=None, volume_info=None, usage=_usag
             fs = ctypes.create_unicode_buffer(261)
             ok = k32.GetVolumeInformationW(root, name, 261, None, None, None, fs, 261)
             return (name.value, fs.value) if ok else ("", "")
+    if remote_of is None:
+        def remote_of(root):  # sciezka UNC dysku sieciowego (\\\\serwer\\udzial), zeby bylo widac, ze Y: i Z: to ten sam udzial
+            try:
+                mpr = ctypes.windll.mpr
+                buf = ctypes.create_unicode_buffer(1024)
+                n = ctypes.c_ulong(1024)
+                return buf.value if mpr.WNetGetConnectionW(root[:2], buf, ctypes.byref(n)) == 0 else ""
+            except (AttributeError, OSError):
+                return ""
     out = []
     for ch in letters:
         root = f"{ch}:\\"
@@ -191,7 +200,9 @@ def list_disks_windows(letters=None, kind_of=None, volume_info=None, usage=_usag
         if size <= 0:
             continue
         part = Part(name=f"{ch}:", path=root, size=size, fstype=fstype, label=label, mounts=[root], used=used, free=free)
-        out.append(Disk(name=f"{ch}:", path=root, size=size, model=label, kind=_WIN_TYPES[t], parts=[part]))
+        unc = remote_of(root) if t == 4 else ""
+        model = f"{label}  ({unc})" if (unc and label) else (unc or label)
+        out.append(Disk(name=f"{ch}:", path=root, size=size, model=model, kind=_WIN_TYPES[t], parts=[part]))
     return out
 
 

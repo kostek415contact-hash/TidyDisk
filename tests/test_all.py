@@ -2405,5 +2405,34 @@ except ValueError:
     _bad = True
 check(_bad, "schtasks: zla godzina odrzucona")
 
+_vd = Path(tempfile.mkdtemp(prefix="fc-ver-"))
+(_vd / "Downloads").mkdir()
+for _n, _sz in (("Setup_1.2.8.0.exe", 3 * 1024 * 1024), ("Setup_1.2.9.0.exe", 3 * 1024 * 1024), ("Setup_1.2.13.0.exe", 0)):
+    (_vd / "Downloads" / _n).write_bytes(_n.encode() * (_sz // len(_n)))  # rozna zawartosc: inaczej byly by duplikatami
+    os.utime(_vd / "Downloads" / _n, (time.time() - 200 * 86400,) * 2)
+from tidydisk import scanner as sc_v, kb as kb_v
+_rv = sc_v.scan(str(_vd), kb_v.KnowledgeBase(_vd, []), advise=True)
+_adv = {os.path.basename(a[1]): a for a in _rv.advice}
+check("Setup_1.2.13.0.exe" not in _rv.keepers and not any("1.2.13.0" in r for a in _adv.values() for r in a[6]), "wersje: pusty plik nie jest 'nowsza wersja'")
+check("Setup_1.2.8.0.exe" in _adv and any("1.2.9.0" in r for r in _adv["Setup_1.2.8.0.exe"][6]), "wersje: starsza wersja wskazuje na prawdziwa nowsza")
+shutil.rmtree(_vd, ignore_errors=True)
+
+_ai = sch_w.win_ai_task_args("daily", "02:15", "assisted", command="X")
+check(_ai[_ai.index("/TN") + 1] == "TidyDisk-ai" and _ai[_ai.index("/TR") + 1] == "X ai --notify -q --wait-ai 10 --mode assisted" and "DAILY" in _ai, "schtasks: zadanie AI w tle")
+check(sch_w.win_task_args("weekly", "", 1, 1, command="X", auto_clean=True)[4].endswith("--auto-clean") and not sch_w.win_task_args("weekly", "", 1, 1, command="X")[4].endswith("--auto-clean"), "schtasks: auto-clean tylko na zyczenie")
+from tidydisk import disks as dk_w
+_dw = dk_w.list_disks_windows(letters=["Y", "Z"], kind_of=lambda r: 4, volume_info=lambda r: ("Mikolaj", "NTFS"),
+                              usage=lambda r: (5, 5), remote_of=lambda r: "\\\\srv\\share")
+check(all("\\\\srv\\share" in d.model for d in _dw) and len(_dw) == 2, "dyski Windows: dysk sieciowy pokazuje sciezke UNC")
+_ed = Path(tempfile.mkdtemp(prefix="fc-emp-"))
+(_ed / "Downloads").mkdir()
+(_ed / "Downloads" / "Setup_9.exe").write_bytes(b"")
+(_ed / "Downloads" / "notes.txt").write_bytes(b"")
+os.utime(_ed / "Downloads" / "Setup_9.exe", (time.time() - 100 * 86400,) * 2)
+_re = sc_v.scan(str(_ed), kb_v.KnowledgeBase(_ed, []), advise=True)
+_names = {os.path.basename(a[1]) for a in _re.advice}
+check("Setup_9.exe" in _names and "notes.txt" not in _names, "analiza: pusty instalator w Pobranych proponowany, pusty .txt nie")
+shutil.rmtree(_ed, ignore_errors=True)
+
 print("WSZYSTKO OK" if not fails else f"BLEDY: {len(fails)}")
 sys.exit(1 if fails else 0)

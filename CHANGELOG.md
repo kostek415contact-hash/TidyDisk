@@ -1,5 +1,16 @@
 # Historia zmian
 
+## 2.23.0 - Windows: komplet funkcji z Linuksa
+
+- Windows: harmonogram pracy AI w tle (zadanie `TidyDisk-ai`, `tidydisk ai --notify`) i opcjonalne automatyczne czyszczenie w harmonogramie (`--auto-clean`: tylko pozycje Bezpieczne, domyślnie wyłączone). Przyciski w Ustawieniach działają tak jak na Linuksie.
+- Analiza: pusty instalator lub niedokończone pobieranie (0 B) w Pobranych/Pulpicie jest proponowany jako „pusty plik - najpewniej nieudane pobranie”.
+- Dyski Windows: dysk sieciowy pokazuje ścieżkę UNC, więc widać, gdy dwie litery (np. Y: i Z:) to ten sam udział.
+- Nie uruchamiane jeszcze na prawdziwym Windows.
+
+## 2.22.1 - Pusty plik nie jest „nowszą wersją”
+
+- Analiza: pusty plik (0 B, np. nieudane pobranie `Setup_1.2.13.0.exe`) nie jest już traktowany jako nowsza wersja, więc program nie proponuje usunięcia działającego starszego instalatora na jego podstawie.
+
 ## 2.22.0 - Windows: analiza plików, AI i harmonogram
 
 - Windows: analiza plików (zakładka Polecane: duplikaty, instalatory, niedokończone pobierania, starsze wersje, najwięksi) - skaner liczy wewnątrz na ścieżkach z `/` i zwraca wynik w postaci natywnej (`C:\\...`); rozpoznawanie „Pobranych” i katalogu domowego nie zależy od wielkości liter.

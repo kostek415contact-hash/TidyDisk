@@ -2128,11 +2128,6 @@ class HistoryPage(QWidget):
         self.btn_sched_on.setEnabled(not on)
         self.btn_sched_off.setEnabled(on)
         self.changes_label.setText(changes.describe(home=str(core.HOME), limit=6))
-        if osal.is_windows():  # praca AI w tle = timer systemd; na Windows jeszcze brak
-            self.btn_ai_on.setEnabled(False)
-            self.btn_ai_off.setEnabled(False)
-            self.ai_sched_label.setText("Ocena AI w tle: na Windows jeszcze niedostępna.")
-            return
         ai_on = schedule.is_ai_enabled()
         self.btn_ai_on.setEnabled(not ai_on)
         self.btn_ai_off.setEnabled(ai_on)

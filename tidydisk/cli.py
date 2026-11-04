@@ -268,9 +268,6 @@ def main(argv=None) -> int:
     p = build_parser()
     a = p.parse_args(argv)
     out = sys.stdout
-    if osal.is_windows() and a.cmd == "schedule" and getattr(a, "ai", False):
-        sys.stderr.write("Harmonogram AI w tle nie jest jeszcze dostępny na Windows (działa harmonogram sprawdzania dysku).\n")
-        return EXIT_USAGE
     if osal.SYSTEM == "linux" and a.cmd not in ("schedule",):
         from . import schedule as _sch
         _sch.migrate_legacy_units()  # po zmianie nazwy: stare timery fedora-cleaner-* -> tidydisk-*

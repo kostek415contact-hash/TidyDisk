@@ -645,16 +645,18 @@ def scan(root: str, kbase: "kb.KnowledgeBase", progress=None, cancel=None,
             ext = kb.ext_of(entry.name)
             code = ext in CODE or (ext == "exe" and not _in_inbox(epath, home))
             mt = st.st_mtime
-            if not code and ext in VERSIONED:
+            if not code and ext in VERSIONED and st.st_size > 0:  # pusty plik (nieudane pobranie) nie moze byc 'nowsza wersja'
                 fr[9].append((entry.name, epath, blocks, mt, st.st_atime))
             if code:
                 pass
             elif ext in ARCHIVE or ext == "rpm":
                 fr[6].append((entry.name, epath, blocks, mt, st.st_atime))
             else:
-                sc, why = score_item(entry.name, rating, blocks, mt, st.st_atime, now,
+                empty = [(25, kb.reason("empty"))] if (st.st_size == 0 and (ext in INSTALLER or ext in PARTIAL)
+                                                         and _in_inbox(epath, home)) else None
+                sc, why = score_item(entry.name, rating, blocks, mt, st.st_atime, now, empty,
                                      inbox=_in_inbox(epath, home))
-                if sc >= ms and blocks >= 32 * 1024:
+                if sc >= ms and (blocks >= 32 * 1024 or empty):
                     fv = kbase.classify_file(epath, verdict)
                     cands.append([sc, epath, blocks, int(mt), fv.rating, fv.title, why, "file"])
             if not code and st.st_size >= dup_min and n_dup_files < 300000:

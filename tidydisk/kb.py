@@ -447,6 +447,7 @@ REASONS = {
     "huge": "bardzo duży ({})",
     "big": "duży ({})",
     "partial": "niedokończone pobieranie",
+    "empty": "pusty plik (0 B) - najpewniej nieudane pobranie",
     "coredump": "zrzut pamięci po awarii",
     "installer": "instalator - po instalacji zwykle zbędny",
     "tempbak": "plik tymczasowy lub kopia zapasowa",

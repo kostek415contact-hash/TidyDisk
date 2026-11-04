@@ -62,6 +62,9 @@ def render_ai(every: str, at: str = "", mode: str = "") -> tuple:
 
 
 def enable_ai(every: str = "weekly", at: str = "", mode: str = "") -> str:
+    if osal.is_windows():
+        code = _schtasks(*win_ai_task_args(every, at, mode))
+        return "włączony" if code == 0 else f"schtasks zwrócił kod {code}"
     if osal.SYSTEM != "linux":
         raise ValueError("Harmonogram (systemd) działa tylko na Linuksie; na Windows użyj Harmonogramu zadań (schtasks).")
     if every not in INTERVALS:
@@ -77,6 +80,9 @@ def enable_ai(every: str = "weekly", at: str = "", mode: str = "") -> str:
 
 
 def disable_ai() -> str:
+    if osal.is_windows():
+        _schtasks("/Delete", "/TN", WIN_TASK_AI, "/F")
+        return "wyłączony"
     if osal.SYSTEM != "linux":
         raise ValueError("Harmonogram (systemd) działa tylko na Linuksie; na Windows użyj Harmonogramu zadań (schtasks).")
     _systemctl("disable", "--now", f"{UNIT_AI}.timer")
@@ -88,6 +94,8 @@ def disable_ai() -> str:
 
 
 def is_ai_enabled() -> bool:
+    if osal.is_windows():
+        return _schtasks("/Query", "/TN", WIN_TASK_AI) == 0
     return (unit_dir() / f"{UNIT_AI}.timer").exists()
 
 
@@ -119,7 +127,7 @@ def win_command() -> str:
     return f'"{sys.executable}" -m tidydisk'
 
 
-def win_task_args(every: str, at: str, min_free_gb: int, min_reclaim_gb: int, command: str | None = None) -> list:
+def win_task_args(every: str, at: str, min_free_gb: int, min_reclaim_gb: int, command: str | None = None, auto_clean: bool = False) -> list:
     """Argumenty `schtasks /Create` (bez 'schtasks'). Sprawdzanie dysku z powiadomieniem, nic nie usuwa."""
     if every not in INTERVALS:
         raise ValueError("every: daily|weekly|monthly")
@@ -127,8 +135,21 @@ def win_task_args(every: str, at: str, min_free_gb: int, min_reclaim_gb: int, co
     if not (0 <= int(hh) < 24 and 0 <= int(mm) < 60):
         raise ValueError("godzina: HH:MM")
     sc = {"daily": ["/SC", "DAILY"], "weekly": ["/SC", "WEEKLY", "/D", "SUN"], "monthly": ["/SC", "MONTHLY", "/D", "1"]}[every]
-    tr = f"{command or win_command()} notify --min-free {int(min_free_gb)} --min-reclaim {int(min_reclaim_gb)}"
+    tr = (f"{command or win_command()} notify --min-free {int(min_free_gb)} --min-reclaim {int(min_reclaim_gb)}"
+          + (" --auto-clean" if auto_clean else ""))
     return ["/Create", "/TN", WIN_TASK, "/TR", tr, *sc, "/ST", f"{int(hh):02d}:{int(mm):02d}", "/F"]
+
+
+WIN_TASK_AI = "TidyDisk-ai"
+
+
+def win_ai_task_args(every: str, at: str, mode: str = "", command: str | None = None) -> list:
+    """Argumenty `schtasks /Create` dla pracy AI w tle: `tidydisk ai --notify -q --wait-ai 10`."""
+    args = win_task_args(every, at, 0, 0, command)
+    tr = f"{command or win_command()} ai --notify -q --wait-ai 10" + (f" --mode {mode}" if mode else "")
+    args[args.index("/TN") + 1] = WIN_TASK_AI
+    args[args.index("/TR") + 1] = tr
+    return args
 
 
 def _schtasks(*a) -> int:
@@ -140,9 +161,7 @@ def _schtasks(*a) -> int:
 
 def enable(every: str = "weekly", min_free_gb: int = 20, min_reclaim_gb: int = 5, auto_clean: bool = False, at: str = "") -> str:
     if osal.is_windows():
-        if auto_clean:
-            raise ValueError("Automatyczne czyszczenie w harmonogramie nie jest jeszcze dostępne na Windows (tylko sprawdzanie i powiadomienie).")
-        code = _schtasks(*win_task_args(every, at, min_free_gb, min_reclaim_gb))
+        code = _schtasks(*win_task_args(every, at, min_free_gb, min_reclaim_gb, auto_clean=auto_clean))
         return "włączony" if code == 0 else f"schtasks zwrócił kod {code}"
     if osal.SYSTEM != "linux":
         raise ValueError("Harmonogram (systemd) działa tylko na Linuksie; na Windows użyj Harmonogramu zadań (schtasks).")
