@@ -349,21 +349,23 @@ def dedupe_selection(entries: list) -> list:
     out = []
     exact: set = set()  # przyjete sciezki
     norm: set = set()  # to samo bez koncowego '/': kandydaci na przodka
+    win = osal.is_windows()
     for e in sorted(entries, key=lambda x: len(x.paths[0]) if (x.kind == "path" and x.paths) else 0):
         if e.kind == "path" and e.paths:
             p = e.paths[0]
             if p in exact:
                 continue
-            k, covered = p.find("/"), False
+            q = p.replace("\\", "/").lower() if win else p
+            k, covered = q.find("/"), False
             while k >= 0:  # przodkowie p to prefiksy p[:k] konczace sie tuz przed '/'
-                if p[:k] in norm:
+                if q[:k] in norm:
                     covered = True
                     break
-                k = p.find("/", k + 1)
+                k = q.find("/", k + 1)
             if covered:
                 continue
             exact.add(p)
-            norm.add(p.rstrip("/"))
+            norm.add(q.rstrip("/"))
         out.append(e)
     return out
 
@@ -434,7 +436,7 @@ def holds_keep(path: str, depth: int = 3, budget: int = 4000) -> str:
             with os.scandir(p) as it:
                 for e in it:
                     seen += 1
-                    if e.name in KEEP_NAMES:
+                    if (e.name.lower() if osal.is_windows() else e.name) in KEEP_NAMES:
                         return e.name
                     if d < depth and e.is_dir(follow_symlinks=False):
                         todo.append((e.path, d + 1))
@@ -543,6 +545,9 @@ def remove_path(path: str, errors: list, user: bool = False) -> None:
         os.close(pfd)
 
 
+_EXPLORER_CACHE = re.compile(r"^(thumbcache|iconcache)_.*\.db$", re.IGNORECASE)
+
+
 def remove_contents(directory: str, errors: list) -> None:
     try:
         with os.scandir(directory) as it:
@@ -552,6 +557,8 @@ def remove_contents(directory: str, errors: list) -> None:
     except OSError as ex:
         errors.append(f"{directory}: {ex.strerror}")
         return
+    if osal.is_windows() and kb_windows.norm(directory).endswith("/microsoft/windows/explorer"):
+        children = [c for c in children if _EXPLORER_CACHE.match(os.path.basename(c))]  # tylko pliki cache, nie caly folder
     for c in children:
         remove_path(c, errors)
 
@@ -708,7 +715,7 @@ def running_names() -> set:
     names: set = set()
     if osal.is_windows():
         try:
-            r = subprocess.run(["tasklist", "/fo", "csv", "/nh"], capture_output=True, text=True, timeout=20)
+            r = subprocess.run(["tasklist", "/fo", "csv", "/nh"], capture_output=True, text=True, errors="replace", timeout=20, **osal.nowindow())
             for ln in r.stdout.splitlines():
                 nm = ln.split('","')[0].strip('"').lower()
                 if nm:

@@ -49,12 +49,13 @@ class Anon:
         """Sciezka do pokazania - maskuje szczegoly w 'Twoich plikach'."""
         if self.private or rating != kb.MINE:
             return self.path(path)
-        if path != self.home and path.startswith(self.home + "/"):
-            parts = path[len(self.home) + 1:].split("/")
+        sep = "\\" if "\\" in self.home else "/"
+        if path != self.home and path.startswith(self.home + sep):
+            parts = path[len(self.home) + 1:].split(sep)
             if len(parts) <= 1:
                 return self.path(path)
             tail = "<folder>" if is_dir else f"<plik .{kb.ext_of(parts[-1]) or 'bez rozszerzenia'}>"
-            return f"~/{parts[0]}/…/{tail}"
+            return f"~{sep}{parts[0]}{sep}…{sep}{tail}"
         return self.path(path)
 
 
@@ -220,7 +221,7 @@ def _folder_listing(an: Anon, names=("Downloads", "Pobrane"), limit: int = 150) 
                 "| Nazwa | Rozmiar | Zmieniony | Ocena | Rozpoznane jako |", "|---|---:|---|---|---|"]
         for it in items:
             shown = an.shown(it.path, it.verdict.rating, it.is_dir)
-            shown = shown.rsplit("/", 1)[-1] if "/" in shown else shown
+            shown = re.split(r"[\\/]", shown)[-1]
             out.append(f"| {'📁 ' if it.is_dir else ''}{_cell(shown)} | "
                        f"{('≥ ' if not it.exact else '') + fmt_size(it.size) if it.size >= 0 else '—'} | "
                        f"{time.strftime('%Y-%m-%d', time.localtime(it.mtime))} | "
@@ -288,7 +289,7 @@ def _mask(an, r) -> tuple:
         return an.path(r["label"]), an.path(r["target"])
     parts = [an.shown(t, r["rating"]) for t in str(r["target"]).split(" ; ")]
     where = " ; ".join(parts)
-    label = parts[0].rsplit("/", 1)[-1] if len(parts) == 1 and parts[0] else "Twoje pliki"
+    label = re.split(r"[\\/]", parts[0])[-1] if len(parts) == 1 and parts[0] else "Twoje pliki"
     return label, where
 
 

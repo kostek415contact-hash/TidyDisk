@@ -315,7 +315,7 @@ def peek(path: str, size: int = 0) -> dict:
     import unicodedata
     full = unicodedata.normalize("NFKD", path).casefold()
     low = os.path.basename(full)
-    if any(h in low for h in SECRET_HINTS) or any(d in full for d in SECRET_DIRS):
+    if any(h in low for h in SECRET_HINTS) or any(d in full.replace("\\", "/") for d in SECRET_DIRS):
         return {"pominiete": "nazwa lub miejsce wskazuje na dane poufne - nie zagladam"}
     out: dict = {}
     try:
@@ -515,7 +515,7 @@ def make_pool(advice: list, nodes: dict, top_files: list, home: str, limit: int 
 
 def _item_meta(i: int, d: dict, home: str, rich: bool = False, look: bool = False) -> dict:
     path = d["path"]
-    short = ("~" + path[len(home):] if path.startswith(home + "/") else path)[:240]
+    short = ("~" + path[len(home):] if path.startswith((home + "/", home + "\\")) else path)[:240]
     pure = settings.RUNTIME.get("search_mode") == "ai_only"  # bez podpowiedzi algorytmu: model ocenia sam
     m = {"id": i, "sciezka": short, "rodzaj": "folder" if d["kind"] == "dir" else "plik",
          "rozmiar_MB": round(d["size"] / 1048576, 1)}
@@ -679,7 +679,7 @@ def allowed_risks(cfg: dict | None = None) -> tuple:
 
 def folder_meta(i: int, d: dict, home: str) -> dict:
     path = d["path"]
-    short = ("~" + path[len(home):] if path.startswith(home + "/") else path)[:240]
+    short = ("~" + path[len(home):] if path.startswith((home + "/", home + "\\")) else path)[:240]
     m = {"id": i, "sciezka": short, "rozmiar_MB": round(d["size"] / 1048576), "plikow": d.get("files", 0),
          "ocena_programu": d["rating"]}
     try:
@@ -908,10 +908,13 @@ def _ancestors(path: str):
     """Wlasciwi przodkowie sciezki (od najglebszego); '' pomijamy, '/' na koncu dla sciezek bezwzglednych."""
     cur = path
     while True:
-        i = cur.rfind("/")
+        i = max(cur.rfind("/"), cur.rfind("\\")) if osal.is_windows() else cur.rfind("/")
         if i <= 0:
             break
         cur = cur[:i]
+        if cur.endswith(":"):  # korzen dysku Windows: "C:" -> "C:\\"
+            yield cur + "\\"
+            break
         yield cur
     if path.startswith("/") and path != "/":
         yield "/"
@@ -928,6 +931,9 @@ def _nearest(path: str, verdicts: dict):
 
 
 def _under(path: str, base: str) -> bool:
+    if osal.is_windows():
+        b = base.rstrip("/\\")
+        return path == base or path.startswith((b + "\\", b + "/"))
     return path == base or path.startswith(base.rstrip("/") + "/")
 
 

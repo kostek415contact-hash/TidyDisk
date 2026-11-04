@@ -1,5 +1,5 @@
 Name:           tidydisk
-Version:        2.23.0
+Version:        2.23.1
 Release:        1%{?dist}
 Summary:        Free up disk space safely, with optional local AI review
 License:        GPL-3.0-or-later
@@ -67,6 +67,8 @@ desktop-file-validate %{buildroot}%{_datadir}/applications/%{name}.desktop
 %{_libexecdir}/%{name}/
 
 %changelog
+* Wed Nov 04 2026 TidyDisk contributors <noreply@example.invalid> - 2.23.1-1
+- Windows: poprawki bezpieczenstwa i spojnosci sciezek, tidydisk-gui.exe w harmonogramie
 * Wed Nov 04 2026 TidyDisk contributors <noreply@example.invalid> - 2.23.0-1
 - Windows: AI scheduler task, auto-clean option, empty-file suggestions, UNC paths
 

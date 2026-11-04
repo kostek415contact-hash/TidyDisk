@@ -1,5 +1,15 @@
 # Historia zmian
 
+## 2.23.1 - Windows: poprawki po audycie
+
+- Bezpieczeństwo usuwania: odrzucane nazwy-aliasy (końcowa kropka/spacja, strumienie `:`, nazwy urządzeń, 8.3), pliki tylko w chmurze (OneDrive) są pomijane, ponowna kontrola junctionów przed wejściem do katalogu, Kosz z oknami systemowymi (Windows pyta, gdy element się nie mieści). Foldery OneDrive/Dropbox/Google Drive, pliki z kropką, `.git`, `.ssh`, `.gnupg` są chronione.
+- Skaner pomija junctiony (ten sam plik nie wygląda już na duplikat).
+- Ścieżki natywne (`\`) w AI (ochrona kluczy `.ssh`/`.aws`, foldery „zostaw”, skracanie `~`), raporcie (maskowanie „Twoich plików”), „Co się zmieniło”, zaznaczaniu (folder + plik w środku), uczeniu.
+- Eksplorator: czyszczone tylko `thumbcache_*`/`iconcache_*`.
+- Harmonogram Windows: zadanie uruchamia `tidydisk-gui.exe` (bez okna konsoli), czytelny komunikat błędu `schtasks`, sprawdzane wyłączanie; `tidydisk-gui.exe` przyjmuje polecenia (`notify`, `ai`), zapisuje `crash.log` przy awarii; do exe dołączone tłumaczenia.
+- „Przywróć z kosza” na Windows kieruje do Eksploratora.
+- Nie uruchamiane jeszcze na prawdziwym Windows.
+
 ## 2.23.0 - Windows: komplet funkcji z Linuksa
 
 - Windows: harmonogram pracy AI w tle (zadanie `TidyDisk-ai`, `tidydisk ai --notify`) i opcjonalne automatyczne czyszczenie w harmonogramie (`--auto-clean`: tylko pozycje Bezpieczne, domyślnie wyłączone). Przyciski w Ustawieniach działają tak jak na Linuksie.

@@ -1,6 +1,7 @@
 """Skan wszystkich miejsc (dom + dyski danych) bez Qt: wspolny dla okna i trybu w tle (Etap B)."""
 from __future__ import annotations
 
+import os
 import threading
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -47,6 +48,7 @@ def scan_all(cfg: dict, cancel=None, report=None, on_merge=None):
         if report is None:
             return
         shown = ("~" + root[len(home):]) if root.startswith(home) else root
+        shown = shown.replace("/", os.sep)
         with lock:  # wywolania z kilku watkow wchodza do okna po kolei
             if path == "@rpm":
                 st, txt, f_in = 1, "sprawdzam, które pakiety rpm są już zainstalowane", 0.0

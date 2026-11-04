@@ -34,6 +34,7 @@ LOCAL_FUSE = {"fuse.ntfs-3g", "fuse.exfat", "fuse.bindfs", "fuse.encfs", "fuse.g
 
 
 _WIN = os.name == "nt"
+_SEPS = "/\\" if _WIN else "/"  # backslash jest separatorem tylko na Windows (na Linuksie moze byc czescia nazwy)
 
 
 def _fwd(path: str) -> str:
@@ -113,14 +114,14 @@ class ScanResult:
         if idx is None or self.__dict__.get("_index_n") != len(self.nodes):
             idx = {}
             for p, (size, files, rating, title, _d) in self.nodes.items():
-                if p == self.root or p == "/" or p.rstrip("/\\") == self.root.rstrip("/\\"):
+                if p == self.root or p == "/" or p.rstrip(_SEPS) == self.root.rstrip(_SEPS):
                     continue
-                parent = os.path.dirname(p.rstrip("/\\")) or "/"
+                parent = os.path.dirname(p.rstrip(_SEPS)) or "/"
                 idx.setdefault(parent, []).append((p, size, files, rating, title))
             for lst in idx.values():
                 lst.sort(key=lambda x: -x[1])
             self._index, self._index_n = idx, len(self.nodes)
-        return list(idx.get(path.rstrip("/\\") or "/", []))
+        return list(idx.get(path.rstrip(_SEPS) or "/", []))
 
 
 # ------------------------------------------------------------------ algorytm --
@@ -384,9 +385,12 @@ _INBOX_LC = {i.lower() for i in INBOX}
 
 
 _MANAGED_RE = re.compile("|".join(re.escape(m) for m in MANAGED))
+_MANAGED_RE_I = re.compile(_MANAGED_RE.pattern, re.I)
 
 
 def _managed(path: str) -> bool:
+    if _WIN:
+        return _MANAGED_RE_I.search(path.replace("\\", "/")) is not None
     return _MANAGED_RE.search(path) is not None
 
 
@@ -608,6 +612,8 @@ def scan(root: str, kbase: "kb.KnowledgeBase", progress=None, cancel=None,
         try:
             st = entry.stat(follow_symlinks=False)
             is_dir = entry.is_dir(follow_symlinks=False)
+            if _WIN and is_dir and getattr(st, "st_file_attributes", 0) & 0x400:
+                continue  # junction/punkt ponownej analizy: ten sam plik byłby widoczny pod dwiema ścieżkami
         except OSError:
             res.errors += 1
             continue
@@ -653,6 +659,7 @@ def scan(root: str, kbase: "kb.KnowledgeBase", progress=None, cancel=None,
                 fr[6].append((entry.name, epath, blocks, mt, st.st_atime))
             else:
                 empty = [(25, kb.reason("empty"))] if (st.st_size == 0 and (ext in INSTALLER or ext in PARTIAL)
+                                                         and now - mt > DAY  # swiezy pusty plik to dopiero zaczete pobieranie
                                                          and _in_inbox(epath, home)) else None
                 sc, why = score_item(entry.name, rating, blocks, mt, st.st_atime, now, empty,
                                      inbox=_in_inbox(epath, home))

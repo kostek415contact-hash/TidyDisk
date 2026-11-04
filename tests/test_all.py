@@ -2434,5 +2434,32 @@ _names = {os.path.basename(a[1]) for a in _re.advice}
 check("Setup_9.exe" in _names and "notes.txt" not in _names, "analiza: pusty instalator w Pobranych proponowany, pusty .txt nie")
 shutil.rmtree(_ed, ignore_errors=True)
 
+_fd = Path(tempfile.mkdtemp(prefix="fc-fresh-"))
+(_fd / "Downloads").mkdir()
+(_fd / "Downloads" / "nowy.crdownload").write_bytes(b"")
+_rf = sc_v.scan(str(_fd), kb_v.KnowledgeBase(_fd, []), advise=True)
+check(not any(a[1].endswith("nowy.crdownload") for a in _rf.advice), "analiza: swiezy pusty .crdownload (trwa pobieranie) nie jest proponowany")
+shutil.rmtree(_fd, ignore_errors=True)
+_sr = sc_v.ScanResult(root="/h")
+_sr.nodes = {"/h/x/foo\\": [1, 1, "mine", "", 2], "/h/x/foo\\/sub": [1, 1, "mine", "", 3], "/h/x": [2, 2, "mine", "", 1], "/h": [2, 2, "mine", "", 0]}
+check([c[0] for c in _sr.children("/h/x")] == ["/h/x/foo\\"] and [c[0] for c in _sr.children("/h/x/foo\\")] == ["/h/x/foo\\/sub"], "children: backslash w nazwie katalogu na Linuksie to czesc nazwy")
+
+
+# --- 2.23.1: sciezki natywne Windows u konsumentow
+from tidydisk import ai as _ai, changes as _ch, learn as _ln, osal, core
+_osw = osal.is_windows
+osal.is_windows = lambda: True
+try:
+    check(list(_ai._ancestors("C:\\Users\\Jan\\Foo\\a.bin"))[:3] == ["C:\\Users\\Jan\\Foo", "C:\\Users\\Jan", "C:\\Users"], "ai: _ancestors dla sciezki Windows")
+    check(_ai._nearest("C:\\Users\\Jan\\Foo\\a.bin", {"C:\\Users\\Jan": 1}) == "C:\\Users\\Jan", "ai: _nearest dla Windows")
+    check(_ai._under("C:\\a\\b", "C:\\a") and not _ai._under("C:\\ab", "C:\\a"), "ai: _under dla Windows")
+    class _E:
+        kind = "path"
+        def __init__(s, p): s.paths = [p]
+    check(len(core.dedupe_selection([_E("C:\\a"), _E("C:\\a\\b.txt")])) == 1, "dedupe_selection: plik w zaznaczonym folderze (Windows)")
+finally:
+    osal.is_windows = _osw
+check(_ch.__name__ and True, "changes zaimportowane")
+check("Users" not in "".join(_ln.features("C:\\Users\\Jan\\Old\\x.zip", 100, "safe", 50, [], "C:\\Users\\Jan")), "learn: cecha folderu bez loginu")
 print("WSZYSTKO OK" if not fails else f"BLEDY: {len(fails)}")
 sys.exit(1 if fails else 0)

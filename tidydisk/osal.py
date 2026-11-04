@@ -17,6 +17,21 @@ def is_windows() -> bool:
     return SYSTEM == "windows"
 
 
+def nowindow() -> dict:
+    """Argumenty subprocess.run: na Windows bez migajacego okna konsoli (proces okienkowy uruchamia polecenia konsolowe)."""
+    if SYSTEM == "windows":
+        import subprocess
+        return {"creationflags": getattr(subprocess, "CREATE_NO_WINDOW", 0x08000000)}
+    return {}
+
+
+def powershell_exe() -> str:
+    """Pelna sciezka do powershell.exe (nie szukamy go w biezacym katalogu ani obok programu)."""
+    root = os.environ.get("SystemRoot") or "C:\\Windows"
+    full = os.path.join(root, "System32", "WindowsPowerShell", "v1.0", "powershell.exe")
+    return full if os.path.exists(full) else "powershell"
+
+
 def alloc_size(st) -> int:
     """Rozmiar zajety na dysku z wyniku stat: bloki (Unix) albo rozmiar logiczny (Windows, brak st_blocks)."""
     blocks = getattr(st, "st_blocks", None)

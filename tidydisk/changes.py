@@ -32,7 +32,7 @@ def diff(old: dict, new: dict) -> list:
     # zostaje najwyzszy folder z lancucha (nie raportujemy tez wszystkich jego podfolderow)
     kept: list = []
     for p, o, s in out:
-        if not any(p.startswith(q + "/") for q, _o, _s in kept):
+        if not any(p.startswith((q.rstrip("/\\") + "/", q.rstrip("/\\") + "\\")) for q, _o, _s in kept):
             kept.append((p, o, s))
     return kept
 

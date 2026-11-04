@@ -2116,11 +2116,17 @@ class HistoryPage(QWidget):
         self.refresh()
 
     def sched_enable(self, *_a) -> None:
-        self.sched_label.setText("Powiadomienia: " + schedule.enable("weekly"))
+        try:
+            self.sched_label.setText("Powiadomienia: " + schedule.enable("weekly"))
+        except ValueError as ex:  # np. system bez obslugi harmonogramu
+            self.sched_label.setText(f"Powiadomienia: {ex}")
         self._sched_sync()
 
     def sched_disable(self, *_a) -> None:
-        self.sched_label.setText("Powiadomienia: " + schedule.disable())
+        try:
+            self.sched_label.setText("Powiadomienia: " + schedule.disable())
+        except ValueError as ex:
+            self.sched_label.setText(f"Powiadomienia: {ex}")
         self._sched_sync()
 
     def _sched_sync(self) -> None:
@@ -2138,14 +2144,18 @@ class HistoryPage(QWidget):
         at = self.ai_at.text().strip()
         try:
             msg = schedule.enable_ai(self.ai_every.currentData() or "weekly", at)
-        except (ValueError, KeyError):
-            self.ai_sched_label.setText("Podaj godzinę w formacie GG:MM, np. 03:00.")
+        except (ValueError, KeyError) as ex:
+            bad_time = bool(at) and not (len(at) == 5 and at[2] == ":" and at[:2].isdigit() and at[3:].isdigit())
+            self.ai_sched_label.setText("Podaj godzinę w formacie GG:MM, np. 03:00." if bad_time else str(ex))
             return
         self._sched_sync()
         self.ai_sched_label.setText(self.ai_sched_label.text() + f" ({msg})")
 
     def ai_sched_disable(self, *_a) -> None:
-        schedule.disable_ai()
+        try:
+            schedule.disable_ai()
+        except ValueError as ex:
+            self.ai_sched_label.setText(str(ex))
         self._sched_sync()
 
     def refresh(self) -> None:
@@ -3092,7 +3102,36 @@ class MainWindow(QMainWindow):
             app.quit()
 
 
+def _install_excepthook() -> None:
+    """Wyjatek w slocie Qt zamyka program bez sladu (zwlaszcza bez konsoli, np. tidydisk-gui.exe): zapisujemy go do crash.log
+    i pokazujemy okno z miejscem pliku."""
+    import traceback
+
+    def hook(etype, value, tb):
+        text = "".join(traceback.format_exception(etype, value, tb))
+        where = ""
+        try:
+            d = osal.data_dir()
+            d.mkdir(parents=True, exist_ok=True)
+            with open(d / "crash.log", "a", encoding="utf-8") as f:
+                f.write(f"--- TidyDisk {__version__} {time.strftime('%Y-%m-%d %H:%M:%S')}\n{text}\n")
+            where = f"\n\nSzczegóły zapisano w: {d / 'crash.log'}"
+        except OSError:
+            pass
+        try:
+            sys.__stderr__ and sys.__stderr__.write(text)
+        except (AttributeError, OSError, ValueError):
+            pass
+        try:
+            QMessageBox.critical(None, "TidyDisk", f"Wystąpił nieoczekiwany błąd:\n{value}{where}")
+        except Exception:
+            pass
+
+    sys.excepthook = hook
+
+
 def main() -> int:
+    _install_excepthook()
     app = QApplication(sys.argv)
     app.setApplicationName("tidydisk")
     app.setApplicationDisplayName("TidyDisk")

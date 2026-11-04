@@ -66,6 +66,9 @@ def mark_restored(run_ts: int, path: str, directory=None) -> None:
 
 def restore_from_trash(path: str, trash_dir=None) -> tuple:
     """Przenosi z kosza (~/.local/share/Trash) z powrotem na pierwotne miejsce: (ok, komunikat)."""
+    from . import osal
+    if osal.is_windows() and trash_dir is None:
+        return False, "Przywróć element z Kosza w Eksploratorze (prawy przycisk → Przywróć)."
     trash = Path(trash_dir or Path.home() / ".local" / "share" / "Trash")
     info_dir, files_dir = trash / "info", trash / "files"
     best = None

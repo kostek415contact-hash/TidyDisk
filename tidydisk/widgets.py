@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import re
 import subprocess
 from pathlib import Path
 
@@ -506,7 +507,7 @@ class TreemapWidget(QWidget):
                 f.setBold(True)
                 p.setFont(f)
                 p.drawText(r.adjusted(9, 7, -9, -7), Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft,
-                           RATING_GLYPH.get(rating, "•") + " " + (title or path.rsplit("/", 1)[-1]) + ("  🤖" if path in self.ai_paths else ""))
+                           RATING_GLYPH.get(rating, "•") + " " + (title or re.split(r"[\\/]", path)[-1]) + ("  🤖" if path in self.ai_paths else ""))
                 f.setBold(False)
                 p.setFont(f)
                 p.setPen(sub_txt)

@@ -63,8 +63,7 @@ def render_ai(every: str, at: str = "", mode: str = "") -> tuple:
 
 def enable_ai(every: str = "weekly", at: str = "", mode: str = "") -> str:
     if osal.is_windows():
-        code = _schtasks(*win_ai_task_args(every, at, mode))
-        return "włączony" if code == 0 else f"schtasks zwrócił kod {code}"
+        return _win_result(_schtasks(*win_ai_task_args(every, at, mode)))
     if osal.SYSTEM != "linux":
         raise ValueError("Harmonogram (systemd) działa tylko na Linuksie; na Windows użyj Harmonogramu zadań (schtasks).")
     if every not in INTERVALS:
@@ -81,8 +80,8 @@ def enable_ai(every: str = "weekly", at: str = "", mode: str = "") -> str:
 
 def disable_ai() -> str:
     if osal.is_windows():
-        _schtasks("/Delete", "/TN", WIN_TASK_AI, "/F")
-        return "wyłączony"
+        code = _schtasks("/Delete", "/TN", WIN_TASK_AI, "/F")
+        return "wyłączony" if (code == 0 or not is_ai_enabled()) else f"nie udało się wyłączyć: {_LAST_OUT[:300]}"
     if osal.SYSTEM != "linux":
         raise ValueError("Harmonogram (systemd) działa tylko na Linuksie; na Windows użyj Harmonogramu zadań (schtasks).")
     _systemctl("disable", "--now", f"{UNIT_AI}.timer")
@@ -123,8 +122,11 @@ WIN_TASK = "TidyDisk-check"
 def win_command() -> str:
     """Polecenie dla Harmonogramu zadan: .exe (po zbudowaniu PyInstallerem) albo `python -m tidydisk`."""
     if getattr(sys, "frozen", False):
-        return f'"{sys.executable}"'
-    return f'"{sys.executable}" -m tidydisk'
+        gui = Path(sys.executable).with_name("tidydisk-gui.exe")  # wersja okienkowa: zadanie nie pokazuje okna konsoli
+        return f'"{gui if gui.exists() else sys.executable}"'
+    exe = Path(sys.executable)
+    pyw = exe.with_name("pythonw.exe")
+    return f'"{pyw if pyw.exists() else exe}" -m tidydisk'
 
 
 def win_task_args(every: str, at: str, min_free_gb: int, min_reclaim_gb: int, command: str | None = None, auto_clean: bool = False) -> list:
@@ -145,6 +147,8 @@ WIN_TASK_AI = "TidyDisk-ai"
 
 def win_ai_task_args(every: str, at: str, mode: str = "", command: str | None = None) -> list:
     """Argumenty `schtasks /Create` dla pracy AI w tle: `tidydisk ai --notify -q --wait-ai 10`."""
+    if mode not in ("", "assisted", "ai_only"):
+        raise ValueError("mode: assisted|ai_only")
     args = win_task_args(every, at, 0, 0, command)
     tr = f"{command or win_command()} ai --notify -q --wait-ai 10" + (f" --mode {mode}" if mode else "")
     args[args.index("/TN") + 1] = WIN_TASK_AI
@@ -152,17 +156,28 @@ def win_ai_task_args(every: str, at: str, mode: str = "", command: str | None = 
     return args
 
 
+_LAST_OUT = ""
+
+
 def _schtasks(*a) -> int:
+    """Uruchamia schtasks; tresc komunikatu (stdout+stderr) zostaje w _LAST_OUT, zeby pokazac uzytkownikowi przyczyne bledu."""
+    global _LAST_OUT
     try:
-        return subprocess.run(["schtasks", *a], capture_output=True, timeout=30).returncode
-    except (OSError, subprocess.SubprocessError):
+        r = subprocess.run(["schtasks", *a], capture_output=True, text=True, errors="replace", timeout=30, **osal.nowindow())
+    except (OSError, subprocess.SubprocessError) as ex:
+        _LAST_OUT = str(ex)
         return 127
+    _LAST_OUT = ((r.stdout or "") + " " + (r.stderr or "")).strip()
+    return r.returncode
+
+
+def _win_result(code: int) -> str:
+    return "włączony" if code == 0 else f"schtasks zwrócił kod {code}: {_LAST_OUT[:300]}"
 
 
 def enable(every: str = "weekly", min_free_gb: int = 20, min_reclaim_gb: int = 5, auto_clean: bool = False, at: str = "") -> str:
     if osal.is_windows():
-        code = _schtasks(*win_task_args(every, at, min_free_gb, min_reclaim_gb, auto_clean=auto_clean))
-        return "włączony" if code == 0 else f"schtasks zwrócił kod {code}"
+        return _win_result(_schtasks(*win_task_args(every, at, min_free_gb, min_reclaim_gb, auto_clean=auto_clean)))
     if osal.SYSTEM != "linux":
         raise ValueError("Harmonogram (systemd) działa tylko na Linuksie; na Windows użyj Harmonogramu zadań (schtasks).")
     if every not in INTERVALS:
@@ -179,8 +194,8 @@ def enable(every: str = "weekly", min_free_gb: int = 20, min_reclaim_gb: int = 5
 
 def disable() -> str:
     if osal.is_windows():
-        _schtasks("/Delete", "/TN", WIN_TASK, "/F")
-        return "wyłączony"
+        code = _schtasks("/Delete", "/TN", WIN_TASK, "/F")
+        return "wyłączony" if (code == 0 or not is_enabled()) else f"nie udało się wyłączyć: {_LAST_OUT[:300]}"
     if osal.SYSTEM != "linux":
         raise ValueError("Harmonogram (systemd) działa tylko na Linuksie; na Windows użyj Harmonogramu zadań (schtasks).")
     _systemctl("disable", "--now", f"{UNIT}.timer")
@@ -218,8 +233,8 @@ def notify(text: str) -> bool:
               "$n=New-Object System.Windows.Forms.NotifyIcon; $n.Icon=[System.Drawing.SystemIcons]::Information; "
               "$n.Visible=$true; $n.ShowBalloonTip(10000,'TidyDisk',$env:TIDYDISK_MSG,'Info'); Start-Sleep 11; $n.Dispose()")
         try:
-            return subprocess.run(["powershell", "-NoProfile", "-NonInteractive", "-Command", ps], timeout=40, capture_output=True,
-                                  env=dict(os.environ, TIDYDISK_MSG=text)).returncode == 0
+            return subprocess.run([osal.powershell_exe(), "-NoProfile", "-NonInteractive", "-Command", ps], timeout=40,
+                                  capture_output=True, env=dict(os.environ, TIDYDISK_MSG=text[:250]), **osal.nowindow()).returncode == 0
         except (OSError, subprocess.SubprocessError):
             return False
     exe = shutil.which("notify-send")

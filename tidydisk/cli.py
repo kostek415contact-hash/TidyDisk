@@ -233,10 +233,10 @@ def build_parser() -> argparse.ArgumentParser:
     n.add_argument("--stdout-only", action="store_true", help="tylko wypisz tekst (bez notify-send)")
     n.add_argument("--cooldown", type=float, default=0, metavar="DNI", help="nie powiadamiaj częściej niż co tyle dni")
     n.add_argument("--disk", default="", help="liczy wolne miejsce tylko na tym dysku (punkt montowania)")
-    sc = sub.add_parser("schedule", help="harmonogram (timer systemd użytkownika)")
+    sc = sub.add_parser("schedule", help="harmonogram (Linux: timer systemd użytkownika; Windows: Harmonogram zadań)")
     sc.add_argument("action", choices=["enable", "disable", "status"])
     sc.add_argument("--every", choices=sorted(schedule.INTERVALS), default="weekly")
-    sc.add_argument("--time", default="", metavar="HH:MM", help="godzina uruchomienia (domyślnie losowa pora)")
+    sc.add_argument("--time", default="", metavar="HH:MM", help="godzina uruchomienia (Linux: domyślnie losowa pora; Windows: 10:00)")
     sc.add_argument("--ai", action="store_true", help="timer pracy w tle: skan + ocena AI (zamiast sprawdzenia dysku)")
     sc.add_argument("--mode", choices=list(settings.SEARCH_MODES), default="", help="dokładność pracy w tle (z --ai)")
     sc.add_argument("--min-free", type=int, default=20)
@@ -358,7 +358,9 @@ def main(argv=None) -> int:
 
     if a.cmd == "notify":
         data, cats = collect()
-        disks = {m: d for m, d in data["disks"].items() if not a.disk or m == a.disk.rstrip("/") or m == a.disk}
+        want = a.disk.rstrip("/") if a.disk else ""
+        disks = {m: d for m, d in data["disks"].items()
+                 if not a.disk or m == want or m == a.disk or (osal.is_windows() and m.rstrip("\\").lower() == a.disk.rstrip("\\/").lower())}
         if not disks:
             sys.stderr.write(f"Nieznany dysk: {a.disk}. Dostępne: {', '.join(data['disks'])}\n")
             return EXIT_USAGE
