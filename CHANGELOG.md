@@ -1,5 +1,17 @@
 # Historia zmian
 
+## 2.23.5 - Poprawki po pełnym audycie
+
+- Czyszczenie starych logów administratora działało zawsze błędem (`find -delete` z `-prune`) i psuło cały skrypt roota; naprawione.
+- `clean` (CLI) odmawia pracy, gdy nie da się wiarygodnie odczytać ustawień (chronione ścieżki); `--older-than` liczy wiek po najnowszym pliku w środku; `--exclude` i ustawienia rozumieją `$HOME`; lista ścieżek w `config set` używa separatora systemu (Windows: `;`).
+- Plik, który zniknął w trakcie czyszczenia, nie jest już błędem.
+- Raport: kolumna „Gdzie” pokazuje polecenie administratora; nazwy „Twoich plików” są maskowane także poza katalogiem domowym i bezpośrednio w nim; „Co się zmieniło” nie raportuje całego łańcucha folderów.
+- AI: klucz API z niedozwolonym znakiem nie wycieka do komunikatów błędu; odpowiedź modelu z dopiskiem lub urwanym końcem nie gubi całej paczki; trafniejsze komunikaty błędów; pliki `.ts` nie są traktowane jak wideo.
+- GUI: usunięta propozycja nie zostaje „duchem” na liście; ostrzeżenie o używanych plikach i usuwanie zdjęć mają domyślnie „Nie”.
+- install.sh/uninstall.sh: odpowiedź „nie” była traktowana jak „tak”; uninstall wyłącza timery.
+- Diagnostyka na Windows nie zostawia nazwy użytkownika w ścieżkach.
+- Nie uruchamiane jeszcze na prawdziwym Windows.
+
 ## 2.23.4 - Drobne poprawki po audycie końcowym
 
 - Ochrona folderów: ocena „Nie ruszaj” sprawdzana w każdym podfolderze bez limitu (wcześniej po 20 000 folderach kontrola cicho się kończyła), błąd odczytu podfolderu to odmowa.

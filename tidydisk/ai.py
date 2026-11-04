@@ -119,6 +119,8 @@ def _request(path: str, payload: dict | None, timeout: float, host: str):
     data = None if payload is None else json.dumps(payload).encode()
     headers = {"Content-Type": "application/json"}
     key = load_config().get("key", "")
+    if key and (any(c in key for c in "\r\n\0") or not key.isascii()):
+        raise OSError("klucz API zawiera niedozwolone znaki (np. nowa linia) - wpisz go ponownie w Ustawieniach AI")
     if key:  # np. Unsloth Studio: Authorization: Bearer sk-unsloth-...
         headers["Authorization"] = "Bearer " + key
     req = urllib.request.Request(host.rstrip("/") + path, data=data, headers=headers)
@@ -388,13 +390,15 @@ def _extract_json(text: str):
     if text.startswith("```"):
         text = text.strip("`")
         text = text[text.find("{"):] if "{" in text else text
-    i, j = text.find("{"), text.rfind("}")
-    if i >= 0 <= j and j > i:
+    dec, i = json.JSONDecoder(), text.find("{")
+    while i >= 0:  # pierwszy poprawny obiekt JSON; dopiski przed/po i urwany ogon nie psuja calej odpowiedzi
         try:
-            data = json.loads(text[i:j + 1])
-            return data if isinstance(data, dict) else None
+            data, _end = dec.raw_decode(text[i:])
+            if isinstance(data, dict):
+                return data
         except ValueError:
-            return None
+            pass
+        i = text.find("{", i + 1)
     return None
 
 
@@ -602,7 +606,7 @@ def friendly_error(msg: str) -> str:
                 "(Chat → Select model) albo (2) włącz Settings → API → Model auto-switch i wpisz pełną nazwę modelu "
                 "w Ustawienia → AI (np. unsloth/gemma-4-26B-A4B-it-qat-GGUF:UD-Q4_K_XL) - serwer wczyta go "
                 "przy pierwszym zapytaniu, co może potrwać kilka minut.")
-    if "401" in low or "unauthorized" in low or "api key" in low:
+    if re.search(r"\b401\b", low) or "unauthorized" in low or "api key" in low:
         return "Serwer odrzucił klucz API - utwórz nowy w Unsloth Studio (Settings → API) i wpisz go w Ustawieniach AI."
     if "tylko z serwerem lokalnym" in low:
         return ("Adres serwera AI nie jest lokalny, więc go nie użyję (dane nie wychodzą z komputera). "
@@ -612,9 +616,9 @@ def friendly_error(msg: str) -> str:
     if "timed out" in low or "timeout" in low:
         return ("Model nie odpowiedział w czasie. Duży model potrzebuje kilku minut na pierwsze wczytanie - spróbuj ponownie, "
                 "a w Ustawienia → AI zwiększ limit czasu lub zmniejsz liczbę pozycji w zapytaniu.")
-    if "404" in low or "not found" in low:
+    if re.search(r"\b404\b", low) or "not found" in low:
         return "Serwer nie zna takiego modelu lub adresu. Sprawdź nazwę modelu (przycisk „Wybierz model”) w Ustawienia → AI."
-    if "out of memory" in low or "oom" in low or "cuda" in low:
+    if "out of memory" in low or re.search(r"\boom\b", low) or "cuda" in low:
         return "Serwerowi zabrakło pamięci GPU/RAM. Zamknij inne programy korzystające z karty albo wczytaj mniejszy model."
     return msg
 

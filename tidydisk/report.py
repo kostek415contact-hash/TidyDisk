@@ -52,11 +52,16 @@ class Anon:
         sep = "\\" if "\\" in self.home else "/"
         if path != self.home and path.startswith(self.home + sep):
             parts = path[len(self.home) + 1:].split(sep)
-            if len(parts) <= 1:
-                return self.path(path)
             tail = "<folder>" if is_dir else f"<plik .{kb.ext_of(parts[-1]) or 'bez rozszerzenia'}>"
+            if len(parts) <= 1:
+                return f"~{sep}{tail}"
             return f"~{sep}{parts[0]}{sep}…{sep}{tail}"
-        return self.path(path)
+        parts = [x for x in re.split(r"[\\/]", path) if x]  # poza katalogiem domowym (np. /mnt/dane/...): zostaje tylko pierwszy skladnik
+        if len(parts) <= 1:
+            return self.path(path)
+        tail = "<folder>" if is_dir else f"<plik .{kb.ext_of(parts[-1]) or 'bez rozszerzenia'}>"
+        lead = path[:path.index(parts[0]) + len(parts[0])]
+        return f"{self.path(lead)}{sep if sep in path else '/'}…{sep if sep in path else '/'}{tail}"
 
 
 def _cell(text) -> str:
@@ -82,7 +87,7 @@ def _rows(cats: list) -> list:
             rows.append(dict(
                 decision=dec, category=c.title, label=e.label, size=e.size, rating=e.rating,
                 suggested=e.suggested, what=e.what, why=e.why, warn=e.warn, reason=reason,
-                target=" ; ".join(e.paths) if e.paths else (e.cmd or "dnf remove " + ", ".join(e.pkgs) if e.pkgs else e.kind),
+                target=" ; ".join(e.paths) if e.paths else (e.cmd or ("dnf remove " + ", ".join(e.pkgs) if e.pkgs else e.kind)),
                 disk=e.disk,
                 root=e.root, rule=e.rule,
             ))

@@ -1339,6 +1339,9 @@ class CleanupPage(QWidget):
             advice = [x for x in self.ai_extra.values() if os.path.lexists(x[1])]  # tylko AI: to, co wskazal model
         else:
             advice = list(advice) + [x for x in self.ai_extra.values() if x[1] not in {a[1] for a in advice} and os.path.lexists(x[1])]
+        fresh = {a[1] for a in advice}
+        for p in [p for p, old in self.file_entries.items() if getattr(old, "rule", "") == "analiza" and p not in fresh]:
+            del self.file_entries[p]  # pozycja z poprzedniej analizy, ktorej juz nie ma (np. usunieta) - bez "ducha" na liscie
         for a in advice:
             if self.learner.is_ignored(a[1]):
                 continue
@@ -2023,7 +2026,8 @@ class PhotosPage(QWidget):
             return
         total = sum(x[3] for x in sel)
         if QMessageBox.question(self, "TidyDisk",
-                                f"Przenieść do kosza {len(sel)} zdjęć (ok. {fmt_size(total)})?\nMożna je przywrócić z kosza lub ze strony Historia.") \
+                                f"Przenieść do kosza {len(sel)} zdjęć (ok. {fmt_size(total)})?\nMożna je przywrócić z kosza lub ze strony Historia.",
+                                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, QMessageBox.StandardButton.No) \
                 != QMessageBox.StandardButton.Yes:
             return
         done, journal = 0, []
@@ -2893,7 +2897,8 @@ class MainWindow(QMainWindow):
                 more = f"\n…i {len(busy) - 8} więcej" if len(busy) > 8 else ""
                 if QMessageBox.question(self, "TidyDisk", "Te pozycje są teraz używane przez działające programy:\n\n"
                                         f"{lines}{more}\n\nUsunięcie ich w trakcie pracy programu może coś zepsuć. "
-                                        "Zamknij programy i spróbuj ponownie, albo kontynuuj.\n\nKontynuować mimo to?") \
+                                        "Zamknij programy i spróbuj ponownie, albo kontynuuj.\n\nKontynuować mimo to?",
+                                        QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, QMessageBox.StandardButton.No) \
                         != QMessageBox.StandardButton.Yes:
                     return
         if not dry and cp.act_review_each.isChecked():

@@ -72,7 +72,19 @@ def _age_days(e) -> float | None:
     ages = []
     for p in e.paths:
         try:
-            ages.append((time.time() - os.lstat(p).st_mtime) / 86400)
+            newest = os.lstat(p).st_mtime
+            if os.path.isdir(p) and not os.path.islink(p):  # mtime katalogu nie widzi zmian glebiej: bierzemy najnowszy plik w srodku
+                seen = 0
+                for root, dirs, files in os.walk(p):
+                    for n in files + dirs:
+                        try:
+                            newest = max(newest, os.lstat(os.path.join(root, n)).st_mtime)
+                        except OSError:
+                            pass
+                        seen += 1
+                    if seen > 20000:
+                        break
+            ages.append((time.time() - newest) / 86400)
         except OSError:
             continue
     return min(ages) if ages else None
@@ -147,7 +159,7 @@ def _coerce(key: str, text: str):
     if isinstance(default, float):
         return float(text)
     if isinstance(default, list):
-        return [x for x in text.split(":") if x]
+        return [x for x in text.split(os.pathsep) if x]
     return text
 
 
@@ -503,6 +515,9 @@ def main(argv=None) -> int:
         return EXIT_OK
 
     # clean
+    if not settings.trustworthy():
+        sys.stderr.write("Przerwano: nie mogę wiarygodnie odczytać ustawień (chronione ścieżki). Napraw plik ustawień albo --config.\n")
+        return EXIT_ERR
     sel = unattended_selection(cats, a.root, only=a.only, exclude=_expand_excludes(a.exclude), older_than=a.older_than,
                                min_size=int(a.min_size * 1024 * 1024), disk=a.disk)
     if a.plan and a.apply:

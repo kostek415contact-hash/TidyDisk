@@ -2494,5 +2494,14 @@ for _k in range(21000):
     os.mkdir(os.path.join(_big, "d%05d" % _k))
 os.makedirs(os.path.join(_big, "zzz", "saves"))
 check(core.holds_keep(_big) != "", "holds_keep: KEEP znaleziony tez po 20 tys. folderow")
+from tidydisk import ai as _ai2, changes as _ch2
+check(_ai2._extract_json('Oto: {"a": 1} Przyklad: {"id":1}') == {"a": 1}, "ai: JSON z dopiskiem po")
+check(_ai2._extract_json('<think>x</think>{"a": 2}') == {"a": 2}, "ai: JSON po bloku myslenia")
+check("klucz" not in _ai2.friendly_error("room 14012 tokens") and _ai2.friendly_error("room 14012 tokens") == "room 14012 tokens", "ai: friendly_error bez falszywych dopasowan")
+_a = _ch2.diff({}, {"/p": (500 * 1024 ** 2,), "/p/q": (500 * 1024 ** 2,)}) if False else None
+_an = report.Anon(True, False)
+if _an is not None:
+    check("umowa" not in _an.shown("/mnt/dane/Tajne/umowa.pdf", kb.MINE) and "umowa" not in _an.shown(str(core.HOME) + "/umowa.pdf", kb.MINE), "report: nazwy MINE maskowane tez poza ~ i bezposrednio w ~")
+check("-prune" not in open("tidydisk/core.py", encoding="utf-8").read().split("Stare, zarchiwizowane logi")[1][:400], "core: find z -delete bez -prune")
 print("WSZYSTKO OK" if not fails else f"BLEDY: {len(fails)}")
 sys.exit(1 if fails else 0)

@@ -1,4 +1,4 @@
-# Buduje tidydisk.exe (wersja konsolowa: skan i raport, bez usuwania). Wymaga: Python 3.11+ i `pip install pyinstaller`.
+# Buduje tidydisk.exe (PyInstaller): skan, raport i czyszczenie (jak na Linuksie).
 # Uruchom z korzenia repozytorium:  powershell -File packaging\windows\build-exe.ps1
 $ErrorActionPreference = "Stop"
 python -m PyInstaller --noconfirm --onefile --name tidydisk `

@@ -15,7 +15,7 @@ import unicodedata
 from . import ai, osal
 
 IMAGE = {"png", "jpg", "jpeg", "gif", "bmp", "webp", "tif", "tiff", "ico", "ppm", "pgm"}
-VIDEO = {"mp4", "mkv", "webm", "avi", "mov", "m4v", "flv", "wmv", "mpg", "mpeg", "ts"}
+VIDEO = {"mp4", "mkv", "webm", "avi", "mov", "m4v", "flv", "wmv", "mpg", "mpeg"}
 AUDIO = {"mp3", "flac", "ogg", "oga", "wav", "m4a", "opus", "aac", "wma"}
 TEXT_MAX = 6000
 DIR_MAX = 40

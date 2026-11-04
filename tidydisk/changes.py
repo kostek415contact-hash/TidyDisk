@@ -28,7 +28,7 @@ def diff(old: dict, new: dict) -> list:
         grow = s - o
         if grow >= MIN_BYTES and (o == 0 or grow / max(o, 1) >= MIN_GROWTH):
             out.append((p, o, s))
-    out.sort(key=lambda t: t[1] - t[2])
+    out.sort(key=lambda t: (t[1] - t[2], len(t[0])))
     # zostaje najwyzszy folder z lancucha (nie raportujemy tez wszystkich jego podfolderow)
     kept: list = []
     for p, o, s in out:

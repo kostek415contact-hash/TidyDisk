@@ -4,6 +4,11 @@ set -euo pipefail
 
 PREFIX="${PREFIX:-$HOME/.local}"
 
+# najpierw wylacz timery uzytkownika (inaczej zostaja i padaja po usunieciu programu)
+if [[ -x "$PREFIX/bin/tidydisk" ]]; then
+  "$PREFIX/bin/tidydisk" schedule disable >/dev/null 2>&1 || true
+  "$PREFIX/bin/tidydisk" schedule disable --ai >/dev/null 2>&1 || true
+fi
 rm -rf "$PREFIX/share/tidydisk"
 rm -f  "$PREFIX/bin/tidydisk" \
        "$PREFIX/share/applications/tidydisk.desktop" \
@@ -17,7 +22,7 @@ command -v kbuildsycoca6          >/dev/null && kbuildsycoca6 >/dev/null 2>&1 ||
 
 if [[ -e /usr/local/lib/tidydisk ]]; then
   read -rp "Usunąć też skaner administratora (sudo)? [T/n] " ans || ans=n
-  if ! [[ "$ans" =~ ^[nN]$ ]]; then
+  if ! [[ "$ans" =~ ^[nN] ]]; then
     sudo rm -rf /usr/local/lib/tidydisk
     { rpm -q tidydisk || dpkg -s tidydisk; } >/dev/null 2>&1 || sudo rm -f /usr/share/polkit-1/actions/org.tidydisk.admin-scan.policy
   fi

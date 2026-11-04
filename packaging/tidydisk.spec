@@ -1,5 +1,5 @@
 Name:           tidydisk
-Version:        2.23.4
+Version:        2.23.5
 Release:        1%{?dist}
 Summary:        Free up disk space safely, with optional local AI review
 License:        GPL-3.0-or-later
@@ -67,6 +67,8 @@ desktop-file-validate %{buildroot}%{_datadir}/applications/%{name}.desktop
 %{_libexecdir}/%{name}/
 
 %changelog
+* Wed Nov 04 2026 TidyDisk contributors <noreply@example.invalid> - 2.23.5-1
+- Poprawki po pelnym audycie
 * Wed Nov 04 2026 TidyDisk contributors <noreply@example.invalid> - 2.23.4-1
 - Drobne poprawki po audycie koncowym
 * Wed Nov 04 2026 TidyDisk contributors <noreply@example.invalid> - 2.23.3-1

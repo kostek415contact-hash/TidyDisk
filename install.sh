@@ -36,7 +36,7 @@ if [[ "${SKIP_DEP_CHECK:-0}" != "1" ]] && ! /usr/bin/python3 -c 'import PyQt6.Qt
   echo "Brakuje PyQt6 (pakiet python3-pyqt6)."
   if command -v apt-get >/dev/null 2>&1 && ! command -v dnf >/dev/null 2>&1; then PKG_CMD="apt-get install -y"; else PKG_CMD="dnf install -y"; fi
   read -rp "Zainstalowac teraz przez sudo ${PKG_CMD%% *}? [T/n] " ans || ans=n
-  if [[ "$ans" =~ ^[nN]$ ]]; then
+  if [[ "$ans" =~ ^[nN] ]]; then
     echo "Przerwano. Zainstaluj: sudo ${PKG_CMD% -y} python3-pyqt6"
     exit 1
   fi
@@ -85,7 +85,7 @@ command -v kbuildsycoca5          >/dev/null && kbuildsycoca5 >/dev/null 2>&1 ||
 
 if [[ "${SKIP_ADMIN:-0}" != "1" ]]; then
   read -rp "Zainstalować skaner administratora (sudo, potrzebny do skanu całego systemu)? [T/n] " ans || ans=n
-  [[ "$ans" =~ ^[nN]$ ]] || install_admin
+  [[ "$ans" =~ ^[nN] ]] || install_admin
 fi
 
 echo "Gotowe. Uruchom z menu aplikacji (\"TidyDisk\") albo komenda: tidydisk"

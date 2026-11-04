@@ -115,7 +115,7 @@ def _clean(key: str, value):
         out = []
         for p in value:
             if isinstance(p, str) and p.strip():
-                p = os.path.normpath(os.path.expanduser(p.strip()))
+                p = os.path.normpath(os.path.expanduser(os.path.expandvars(p.strip())))
                 if os.path.isabs(p) and p not in out:
                     out.append(p)
         return out

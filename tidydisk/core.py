@@ -250,6 +250,8 @@ def _rm_fd(fd: int, path: str, dev: int, errors: list) -> None:
                 os.rmdir(name, dir_fd=fd)
             else:
                 os.unlink(name, dir_fd=fd)
+        except FileNotFoundError:
+            pass  # zniknal w trakcie (np. program sprzata wlasny plik) - cel osiagniety
         except OSError as ex:
             errors.append(f"{full}: {ex.strerror}")
         except RecursionError:
@@ -1049,7 +1051,7 @@ def scan(status=lambda _msg: None) -> list:
     if lsize > 0:
         sysent.append(_rate_fixed(Entry(
             "Stare, zarchiwizowane logi w /var/log", lsize, "root_sh",
-            cmd=("find /var/log -xdev -path /var/log/journal -prune -o -type f "
+            cmd=("find /var/log -xdev -type f ! -path '/var/log/journal/*' "
                  r"\( -name '*.gz' -o -name '*.xz' -o -name '*.zst' -o -name '*.bz2' "
                  r"-o -name '*.old' -o -name '*.[0-9]' \) -print -delete"),
             note="Pliki *.gz, *.xz, *.old, *.1 …", checked=True, root=True),
