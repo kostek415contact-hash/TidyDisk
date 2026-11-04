@@ -61,7 +61,7 @@ jobs:
         with:
           python-version: "3.13"
       - name: Import modulow bez Qt
-        run: python -I -c "import tidydisk, tidydisk.osal, tidydisk.core, tidydisk.scanner, tidydisk.kb, tidydisk.report; print(tidydisk.osal.SYSTEM)"
+        run: python -c "import tidydisk, tidydisk.osal, tidydisk.core, tidydisk.scanner, tidydisk.kb, tidydisk.report; print(tidydisk.osal.SYSTEM)"
       - name: Skan Windows na prawdziwym systemie (tylko odczyt)
         run: python -m tidydisk status
       - name: Budowa .exe (PyInstaller)
