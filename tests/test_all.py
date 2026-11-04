@@ -2460,6 +2460,29 @@ try:
 finally:
     osal.is_windows = _osw
 check(_ch.__name__ and True, "changes zaimportowane")
-check("Users" not in "".join(_ln.features("C:\\Users\\Jan\\Old\\x.zip", 100, "safe", 50, [], "C:\\Users\\Jan")), "learn: cecha folderu bez loginu")
+osal.is_windows = lambda: True
+try:
+    check("Users" not in "".join(_ln.features("C:\\Users\\Jan\\Old\\x.zip", 100, "safe", 50, [], "C:\\Users\\Jan")), "learn: cecha folderu bez loginu")
+finally:
+    osal.is_windows = _osw
+
+from tidydisk import schedule as _sc
+try:
+    _sc.calendar("daily", "abc"); _ok = False
+except ValueError as _ex:
+    _ok = "HH:MM" in str(_ex)
+check(_ok, "schedule: zla godzina daje czytelny blad")
+
+import tempfile as _tf
+_d = _tf.mkdtemp()
+_deep = os.path.join(_d, "a", "b", "c", "d", "e", "f", ".git")
+os.makedirs(_deep)
+check(core.holds_keep(_d) == ".git", "holds_keep: .git gleboko w srodku (5+ poziomow)")
+_e = []
+core.trash_path(_d, _e)
+check(_e and "nie ruszam" in _e[0], "trash_path: folder z .git w srodku nie trafia do kosza")
+_s = _tf.mkdtemp()
+check(core.holds_keep(_s) == "", "holds_keep: pusty folder")
+check(os.path.isabs(cli._expand_excludes(["~/x", "y"])[0]) and len(cli._expand_excludes(["~/x"])) >= 1, "cli: --exclude rozwija ~ i sciezki wzgledne")
 print("WSZYSTKO OK" if not fails else f"BLEDY: {len(fails)}")
 sys.exit(1 if fails else 0)

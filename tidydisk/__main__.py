@@ -4,19 +4,26 @@ import sys
 def run() -> int:
     cmds = ("status", "scan", "analyze", "clean", "report", "notify", "schedule", "ai", "background", "diag", "changes", "config", "rules",
             "history", "-h", "--help", "-V", "--version", "-q", "--quiet", "--config")
-    if len(sys.argv) > 1 and sys.argv[1] in cmds:
+    if len(sys.argv) > 1 and (sys.argv[1] in cmds or sys.argv[1].startswith("-")):
         from .cli import main as cli_main
 
         return cli_main()
     try:
         from .gui import main
-    except ImportError:  # wersja konsolowa (.exe bez PyQt6)
+    except ImportError as ex:  # wersja konsolowa (.exe bez PyQt6)
+        if not (getattr(ex, "name", "") or "").startswith("PyQt6"):
+            raise  # prawdziwy blad importu w programie - nie ukrywamy go
         sys.stderr.write("Wersja konsolowa bez okna: tidydisk status | scan | report | config | rules | --help\n")
         return 2
     return main()
 
 
 def main() -> None:
+    import os
+
+    for name in ("stdout", "stderr"):  # pythonw / exe okienkowe: brak strumieni
+        if getattr(sys, name) is None:
+            setattr(sys, name, open(os.devnull, "w", encoding="utf-8"))
     for stream in (sys.stdout, sys.stderr):  # konsola Windows (cp852/cp1250) nie moze wywalic programu na znaku spoza strony kodowej
         try:
             stream.reconfigure(errors="replace")

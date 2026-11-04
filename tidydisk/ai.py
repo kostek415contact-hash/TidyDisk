@@ -912,7 +912,7 @@ def _ancestors(path: str):
         if i <= 0:
             break
         cur = cur[:i]
-        if cur.endswith(":"):  # korzen dysku Windows: "C:" -> "C:\\"
+        if osal.is_windows() and cur.endswith(":"):  # korzen dysku Windows: "C:" -> "C:\\"
             yield cur + "\\"
             break
         yield cur

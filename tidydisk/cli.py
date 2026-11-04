@@ -78,6 +78,17 @@ def _age_days(e) -> float | None:
     return min(ages) if ages else None
 
 
+def _expand_excludes(items) -> list:
+    """--exclude: ~ i sciezki wzgledne jako bezwzgledne, obie postacie (z dowiazaniami i rozwiazana)."""
+    out: list = []
+    for x in items or []:
+        a = os.path.abspath(os.path.expanduser(x))
+        for v in (a, os.path.realpath(a)):
+            if v not in out:
+                out.append(v)
+    return out
+
+
 def unattended_selection(cats: list, with_root: bool, only=None, exclude=(), older_than: float = 0,
                          min_size: int = 0, disk: str = "") -> list:
     """Pozycje, ktore wolno ruszyc bez pytania: Bezpieczne, zaznaczone, bez ostrzezenia o dzialajacym programie.
@@ -382,7 +393,9 @@ def main(argv=None) -> int:
                     fsutil.atomic_write(state, json.dumps({"last": time.time()}))
                 except OSError:
                     pass
-        if a.auto_clean:
+        if a.auto_clean and not settings.trustworthy():
+            out.write("Pominięto automatyczne czyszczenie: nie mogę wiarygodnie odczytać ustawień (chronione ścieżki).\n")
+        elif a.auto_clean:
             cfg = settings.load()
             sel = unattended_selection(cats, False)
             dry = bool(cfg.get("dry_run"))  # symulacja z ustawien obowiazuje tez w harmonogramie
@@ -490,7 +503,7 @@ def main(argv=None) -> int:
         return EXIT_OK
 
     # clean
-    sel = unattended_selection(cats, a.root, only=a.only, exclude=a.exclude, older_than=a.older_than,
+    sel = unattended_selection(cats, a.root, only=a.only, exclude=_expand_excludes(a.exclude), older_than=a.older_than,
                                min_size=int(a.min_size * 1024 * 1024), disk=a.disk)
     if a.plan and a.apply:
         err("--plan i --apply wykluczają się.")

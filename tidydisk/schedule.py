@@ -35,13 +35,21 @@ def _env_line() -> str:
     return '"PYTHONPATH=' + _unit_arg(package_parent()).replace('"', '\\"') + '"'
 
 
+def _hhmm(at: str) -> tuple:
+    try:
+        hh, mm = at.split(":")
+        if not (0 <= int(hh) < 24 and 0 <= int(mm) < 60):
+            raise ValueError
+    except ValueError:
+        raise ValueError("godzina: HH:MM") from None
+    return hh, mm
+
+
 def calendar(every: str, at: str = "") -> str:
     """OnCalendar: 'weekly' albo np. 'Sun *-*-* 03:30:00' gdy podano godzine HH:MM."""
     if not at:
         return INTERVALS[every]
-    hh, mm = at.split(":")
-    if not (0 <= int(hh) < 24 and 0 <= int(mm) < 60):
-        raise ValueError("godzina: HH:MM")
+    hh, mm = _hhmm(at)
     t = f"{int(hh):02d}:{int(mm):02d}:00"
     return {"daily": f"*-*-* {t}", "weekly": f"Sun *-*-* {t}", "monthly": f"*-*-01 {t}"}[every]
 
@@ -133,9 +141,7 @@ def win_task_args(every: str, at: str, min_free_gb: int, min_reclaim_gb: int, co
     """Argumenty `schtasks /Create` (bez 'schtasks'). Sprawdzanie dysku z powiadomieniem, nic nie usuwa."""
     if every not in INTERVALS:
         raise ValueError("every: daily|weekly|monthly")
-    hh, mm = (at or "10:00").split(":")
-    if not (0 <= int(hh) < 24 and 0 <= int(mm) < 60):
-        raise ValueError("godzina: HH:MM")
+    hh, mm = _hhmm(at or "10:00")
     sc = {"daily": ["/SC", "DAILY"], "weekly": ["/SC", "WEEKLY", "/D", "SUN"], "monthly": ["/SC", "MONTHLY", "/D", "1"]}[every]
     tr = (f"{command or win_command()} notify --min-free {int(min_free_gb)} --min-reclaim {int(min_reclaim_gb)}"
           + (" --auto-clean" if auto_clean else ""))

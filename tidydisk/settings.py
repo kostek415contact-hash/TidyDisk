@@ -150,6 +150,20 @@ def path() -> str:
     return os.path.expanduser(os.environ.get("FC_CONFIG") or FILE)  # FC_CONFIG / --config: inny plik ustawien
 
 
+def trustworthy() -> bool:
+    """Czy plik ustawien da sie wiarygodnie odczytac. Gdy nie (uszkodzony JSON, brak pliku wskazanego przez --config,
+    zla lista chronionych sciezek), nienadzorowane czyszczenie nie moze dzialac na domyslnych ustawieniach bez ochrony."""
+    p = path()
+    if not os.path.exists(p):
+        return not os.environ.get("FC_CONFIG")
+    try:
+        with open(p, encoding="utf-8") as f:
+            raw = json.load(f)
+    except (OSError, ValueError):
+        return False
+    return isinstance(raw, dict) and isinstance(raw.get("protected_paths", []), list)
+
+
 def load(env: bool = True) -> dict:
     """Ustawienia z pliku (z migracja starego ai.json) i zmiennych FC_AI_URL / FC_AI_KEY / FC_AI_MODEL
     (zmienne tylko przy odczycie: env=False daje to, co naprawde jest w pliku - do zapisu)."""

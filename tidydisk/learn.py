@@ -14,7 +14,7 @@ import re
 import time
 from pathlib import Path
 
-from . import kb
+from . import kb, osal
 
 MAX_SAMPLES = 5000
 MIN_SAMPLES = 8  # ponizej tylu przykladow model nic nie zmienia
@@ -43,7 +43,8 @@ def features(path: str, size: int, rating: str, score: int, reasons: list, home:
     ext = name.rsplit(".", 1)[-1].lower() if "." in name.strip(".") else ""
     if ext and len(ext) <= 8:
         f["ext=" + ext] = 1.0
-    path, home = path.replace("\\", "/"), home.replace("\\", "/")
+    if osal.is_windows():
+        path, home = path.replace("\\", "/"), home.replace("\\", "/")
     rel = path[len(home) + 1:] if path.startswith(home + "/") else path.lstrip("/")
     parts = rel.split("/")
     if parts and parts[0]:

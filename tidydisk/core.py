@@ -328,6 +328,11 @@ def is_user_target(path: str) -> tuple:
 
 def trash_path(path: str, errors: list) -> None:
     """Przenosi do kosza (mozna przywrocic) przez `gio trash`."""
+    if os.path.isdir(path) and not os.path.islink(path):
+        kept = holds_keep(path)
+        if kept:
+            errors.append(f"pominięto (w środku jest {kept} - nie ruszam): {path}")
+            return
     if osal.is_windows():
         ok, why = win_check(path, user=True)
         if not ok:
@@ -427,18 +432,27 @@ def advice_entry(a: list, disk: str = "") -> "Entry | None":
 KEEP_NAMES = {".git", ".ssh", ".gnupg"}
 
 
-def holds_keep(path: str, depth: int = 3, budget: int = 4000) -> str:
-    """Nazwa chronionego elementu (.git, .ssh, .gnupg) w srodku folderu (do 3 poziomow) albo ''."""
+def holds_keep(path: str, depth: int = 8, budget: int = 100000) -> str:
+    """Nazwa chronionego elementu w srodku folderu (.git/.ssh/.gnupg albo cokolwiek, co baza wiedzy ocenia jako 'Nie ruszaj')
+    albo ''. Gdy folder jest zbyt duzy/glebokii, zeby go przejrzec, zwraca komunikat odmowy (bezpiecznie: 'nie wiem' = nie usuwamy)."""
     todo, seen = [(path, 0)], 0
-    while todo and seen < budget:
+    win = osal.is_windows()
+    while todo:
+        if seen >= budget:
+            return "zbyt dużo elementów, żeby sprawdzić, czy nic chronionego nie ma w środku"
         p, d = todo.pop()
         try:
             with os.scandir(p) as it:
                 for e in it:
                     seen += 1
-                    if (e.name.lower() if osal.is_windows() else e.name) in KEEP_NAMES:
+                    if e.name.lower() in KEEP_NAMES:
                         return e.name
-                    if d < depth and e.is_dir(follow_symlinks=False):
+                    if e.is_dir(follow_symlinks=False):
+                        if d >= depth:
+                            return "zbyt głęboko zagnieżdżone foldery, żeby sprawdzić, czy nic chronionego nie ma w środku"
+                        v = KB.classify(e.path)
+                        if v.rating == kb.KEEP:
+                            return v.title
                         todo.append((e.path, d + 1))
         except OSError:
             continue

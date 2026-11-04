@@ -1,5 +1,15 @@
 # Historia zmian
 
+## 2.23.2 - Poprawki po drugim audycie
+
+- Bezpieczeństwo: folder z `.git`/`.ssh`/`.gnupg` albo innym elementem „Nie ruszaj” w środku nie trafia już do Kosza (wcześniej kontrola była tylko przy trwałym usuwaniu). Kontrola sięga 8 poziomów i do 100 000 elementów, a gdy folder jest za duży lub za głęboki, program odmawia zamiast zgadywać.
+- `notify --auto-clean` nie czyści, gdy nie da się wiarygodnie odczytać ustawień (uszkodzony JSON, brak pliku z `--config`).
+- `--exclude` rozumie `~` i ścieżki względne.
+- Linux: dwukropek lub backslash w nazwie folderu nie psuje już ocen AI ani „Co się zmieniło”.
+- CLI/exe: `pythonw` bez strumieni nie przerywa `notify` (cooldown i auto-clean działają); `--opcja=wartość` trafia do CLI; prawdziwy błąd importu nie jest ukrywany; zła godzina w harmonogramie daje czytelny komunikat.
+- GUI: sortowanie rozmiarów w „Wszystkich plikach” jest liczbowe; okno błędu pojawia się jedno naraz i tylko w wątku głównym.
+- Nie uruchamiane jeszcze na prawdziwym Windows.
+
 ## 2.23.1 - Windows: poprawki po audycie
 
 - Bezpieczeństwo usuwania: odrzucane nazwy-aliasy (końcowa kropka/spacja, strumienie `:`, nazwy urządzeń, 8.3), pliki tylko w chmurze (OneDrive) są pomijane, ponowna kontrola junctionów przed wejściem do katalogu, Kosz z oknami systemowymi (Windows pyta, gdy element się nie mieści). Foldery OneDrive/Dropbox/Google Drive, pliki z kropką, `.git`, `.ssh`, `.gnupg` są chronione.

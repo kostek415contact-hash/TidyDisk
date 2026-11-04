@@ -73,6 +73,7 @@ ENTRY_ROLE = Qt.ItemDataRole.UserRole
 PATH_ROLE = int(Qt.ItemDataRole.UserRole.value) + 2
 SORT_ROLE = int(Qt.ItemDataRole.UserRole.value) + 4  # klucz sortowania kolumny (rozmiar jako liczba, nazwa bez wielkosci liter)
 SECTION_ROLE = int(Qt.ItemDataRole.UserRole.value) + 3
+DISK_ROLE = int(Qt.ItemDataRole.UserRole.value) + 5  # dysk wiersza w "Wszystkich plikach"
 PAGE_DISKS, PAGE_FOLDERS, PAGE_FILES, PAGE_MAP, PAGE_CLEAN, PAGE_PHOTOS, PAGE_HISTORY, PAGE_SETTINGS = 0, 1, 2, 3, 4, 5, 6, 7
 RIGHT = Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
 
@@ -1546,7 +1547,7 @@ class CleanupPage(QWidget):
         if sec is not None:
             path, disk = sec
         elif item.data(0, PATH_ROLE):
-            path, disk = item.data(0, PATH_ROLE), item.data(0, SECTION_ROLE + 1)
+            path, disk = item.data(0, PATH_ROLE), item.data(0, DISK_ROLE)
         else:
             return
         item.takeChild(0)
@@ -1575,10 +1576,11 @@ class CleanupPage(QWidget):
             locked = ent.rating == kb.KEEP
             size_txt = (("≥ " if not i.exact else "") + fmt_size(i.size)) if i.size >= 0 else "—"
             name = ("🔒 " if locked else "") + ("📁 " if i.is_dir else "") + i.name
-            it = QTreeWidgetItem(parent, [name, size_txt, "", i.verdict.title])
+            it = SortItem(parent, [name, size_txt, "", i.verdict.title])
+            set_sort_keys(it, name.casefold(), i.size)
             it.setData(0, PATH_ROLE, i.path)
             it.setData(0, ENTRY_ROLE, ent)
-            it.setData(0, SECTION_ROLE + 1, disk)
+            it.setData(0, DISK_ROLE, disk)
             it.setData(1, FRAC_ROLE, (i.size / biggest) if biggest > 0 and i.size > 0 else None)
             it.setTextAlignment(1, RIGHT)
             it.setToolTip(0, i.path)
@@ -3107,7 +3109,22 @@ def _install_excepthook() -> None:
     i pokazujemy okno z miejscem pliku."""
     import traceback
 
+    busy = [False]
+
     def hook(etype, value, tb):
+        if issubclass(etype, (KeyboardInterrupt, SystemExit)):
+            sys.__excepthook__(etype, value, tb)
+            return
+        import threading
+        if threading.current_thread() is not threading.main_thread():  # okno Qt z watku roboczego konczy sie abortem
+            try:
+                sys.__stderr__ and sys.__stderr__.write("".join(__import__("traceback").format_exception(etype, value, tb)))
+            except (AttributeError, OSError, ValueError):
+                pass
+            return
+        if busy[0]:  # jedno okno naraz - bez lawiny przy powtarzajacym sie bledzie
+            return
+        busy[0] = True
         text = "".join(traceback.format_exception(etype, value, tb))
         where = ""
         try:
@@ -3126,6 +3143,8 @@ def _install_excepthook() -> None:
             QMessageBox.critical(None, "TidyDisk", f"Wystąpił nieoczekiwany błąd:\n{value}{where}")
         except Exception:
             pass
+        finally:
+            busy[0] = False
 
     sys.excepthook = hook
 

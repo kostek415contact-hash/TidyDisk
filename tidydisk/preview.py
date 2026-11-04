@@ -36,7 +36,7 @@ def _human(n: int) -> str:
 
 def is_secret(path: str) -> bool:
     full = unicodedata.normalize("NFKD", path).casefold()
-    return any(h in os.path.basename(full) for h in ai.SECRET_HINTS) or any(d in full.replace("\\", "/") for d in ai.SECRET_DIRS)
+    return any(h in os.path.basename(full) for h in ai.SECRET_HINTS) or any(d in (full.replace("\\", "/") if os.name == "nt" else full) for d in ai.SECRET_DIRS)
 
 
 def _open_regular(path: str):

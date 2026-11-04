@@ -9,7 +9,7 @@ for _name in ("stdout", "stderr"):
         setattr(sys, _name, open(os.devnull, "w", encoding="utf-8"))
 
 if __name__ == "__main__":
-    if len(sys.argv) > 1 and not sys.argv[1].startswith("-"):
+    if len(sys.argv) > 1:
         from tidydisk.__main__ import main
         main()
     else:
