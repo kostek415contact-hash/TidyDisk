@@ -17,7 +17,7 @@ jobs:
       QT_QPA_PLATFORM: offscreen
     steps:
       - name: Zaleznosci
-        run: dnf install -y python3 python3-pyqt6 python3-pyflakes xorg-x11-server-Xvfb git rpm-build desktop-file-utils libappstream-glib
+        run: dnf install -y python3 python3-pyqt6 python3-pyflakes python3-devel xorg-x11-server-Xvfb git rpm-build desktop-file-utils libappstream-glib
       - uses: actions/checkout@v4
       - name: Testy logiki (bez Qt)
         run: python3 -I tests/test_all.py
