@@ -2487,5 +2487,12 @@ check(os.path.isabs(cli._expand_excludes(["~/x", "y"])[0]) and len(cli._expand_e
 _nm = _tf.mkdtemp()
 os.makedirs(os.path.join(_nm, *["n%d" % k for k in range(14)]))
 check(core.holds_keep(_nm) == "", "holds_keep: gleboki pusty folder (np. node_modules) nie jest odmowa")
+from tidydisk import openfiles as _of
+check(_of.users_of("/h/proj", {"/h/proj/src/x.c": "code", "/h/proj.bak/b": "x"}) == ["code"], "openfiles: sasiednia nazwa nie gubi plikow w folderze")
+_big = _tf.mkdtemp()
+for _k in range(21000):
+    os.mkdir(os.path.join(_big, "d%05d" % _k))
+os.makedirs(os.path.join(_big, "zzz", "saves"))
+check(core.holds_keep(_big) != "", "holds_keep: KEEP znaleziony tez po 20 tys. folderow")
 print("WSZYSTKO OK" if not fails else f"BLEDY: {len(fails)}")
 sys.exit(1 if fails else 0)

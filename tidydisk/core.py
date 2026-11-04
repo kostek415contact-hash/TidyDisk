@@ -434,9 +434,9 @@ KEEP_NAMES = {".git", ".ssh", ".gnupg"}
 
 def holds_keep(path: str, depth: int = 64, budget: int = 2_000_000) -> str:
     """Powod odmowy (pusty napis = mozna), gdy w srodku folderu jest cos chronionego: .git/.ssh/.gnupg na dowolnej glebokosci
-    albo folder, ktory baza wiedzy ocenia jako 'Nie ruszaj' (sprawdzane do 5 poziomow i 20 000 folderow, zeby nie spowalniac).
+    albo folder, ktory baza wiedzy ocenia jako 'Nie ruszaj' (sprawdzane na kazdym poziomie).
     'Nie wiem' (nieczytelny podfolder, zbyt wielki folder) = odmowa. Dowiazan i junctionow nie przekraczamy."""
-    todo, seen, classified = [(path, 0)], 0, 0
+    todo, seen = [(path, 0)], 0
     while todo:
         if seen >= budget:
             return "w środku jest zbyt dużo elementów, żeby sprawdzić, czy nic chronionego tam nie ma"
@@ -452,15 +452,13 @@ def holds_keep(path: str, depth: int = 64, budget: int = 2_000_000) -> str:
                     try:
                         if winfs.is_reparse(e.stat(follow_symlinks=False)):
                             continue
-                    except OSError:
-                        continue
+                    except OSError as ex:
+                        return f"nie mogę odczytać folderu {e.name} ({ex.strerror or ex}), więc nie wiem, co jest w środku"
                     if d >= depth:
                         return "foldery są zbyt głęboko zagnieżdżone, żeby sprawdzić, czy nic chronionego w nich nie ma"
-                    if d < 5 and classified < 20000:
-                        classified += 1
-                        v = KB.classify(e.path)
-                        if v.rating == kb.KEEP:
-                            return f"w środku jest {v.title}"
+                    v = KB.classify(e.path)  # tanie (kilka mikrosekund), wiec bez limitu
+                    if v.rating == kb.KEEP:
+                        return f"w środku jest {v.title}"
                     todo.append((e.path, d + 1))
         except OSError as ex:
             if p == path and isinstance(ex, FileNotFoundError):

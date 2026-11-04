@@ -1,5 +1,12 @@
 # Historia zmian
 
+## 2.23.4 - Drobne poprawki po audycie końcowym
+
+- Ochrona folderów: ocena „Nie ruszaj” sprawdzana w każdym podfolderze bez limitu (wcześniej po 20 000 folderach kontrola cicho się kończyła), błąd odczytu podfolderu to odmowa.
+- Ostrzeżenie „pozycje są używane przez programy” działa też, gdy obok jest inny otwarty plik o podobnej nazwie (`app` i `app-old`) oraz na dyskach zewnętrznych w `/run/media`.
+- Odporność: uszkodzony plik pamięci AI nie blokuje startu; dziwna nazwa folderu Steam nie przerywa skanu.
+- Nie uruchamiane jeszcze na prawdziwym Windows.
+
 ## 2.23.3 - Mniej fałszywych odmów przy ochronie folderów
 
 - Kontrola „czy w środku jest coś chronionego” nie odmawia już dla głębokich ani wielkich folderów (np. `node_modules`): `.git`/`.ssh`/`.gnupg` szukane są na każdej głębokości (limit 2 mln elementów), ocena bazy wiedzy tylko do 5 poziomów. Nieczytelny podfolder nadal oznacza odmowę. Junctiony i dowiązania nie są przekraczane.

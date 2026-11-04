@@ -48,6 +48,8 @@ class AICache:
         try:
             raw = json.loads(self.path.read_text(encoding="utf-8"))
             items = raw.get("e", {}) if isinstance(raw, dict) else {}
+            if not isinstance(items, dict):
+                items = {}
         except FileNotFoundError:
             items = {}
         except (OSError, ValueError):

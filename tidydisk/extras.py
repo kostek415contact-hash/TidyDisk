@@ -67,7 +67,7 @@ def steam_items(home: str) -> list:
         for group in ("shadercache", "compatdata"):
             base = os.path.join(sa, group)
             try:
-                dirs = [d for d in os.scandir(base) if d.is_dir(follow_symlinks=False) and d.name.isdigit()]
+                dirs = [d for d in os.scandir(base) if d.is_dir(follow_symlinks=False) and d.name.isascii() and d.name.isdigit()]
             except OSError:
                 continue
             for d in dirs:

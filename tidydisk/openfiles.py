@@ -24,7 +24,7 @@ def open_paths(proc: str = "/proc") -> dict:
                 target = os.readlink(os.path.join(fd_dir, fd))
             except OSError:
                 continue
-            if not target.startswith("/") or target.startswith(("/dev/", "/proc/", "/sys/", "/run/")) or target.endswith(" (deleted)"):
+            if not target.startswith("/") or (target.startswith(("/dev/", "/proc/", "/sys/", "/run/")) and not target.startswith("/run/media/")) or target.endswith(" (deleted)"):
                 continue
             if not name:
                 try:
@@ -40,9 +40,11 @@ def users_of(path: str, opened: dict) -> list:
     """Nazwy programow, ktore maja otwarty `path` albo cos wewnatrz niego (dla folderu)."""
     base = path.rstrip("/")
     names = set()
+    if base in opened:
+        names.add(opened[base])
     keys = sorted(opened)
-    i = bisect.bisect_left(keys, base)
-    while i < len(keys) and (keys[i] == base or keys[i].startswith(base + "/")):
+    i = bisect.bisect_left(keys, base + "/")  # tylko klucze wewnatrz folderu (sasiednie nazwy typu 'base.bak' leza gdzie indziej)
+    while i < len(keys) and keys[i].startswith(base + "/"):
         names.add(opened[keys[i]])
         i += 1
     return sorted(names)
