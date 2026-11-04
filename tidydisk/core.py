@@ -784,6 +784,9 @@ def data_mounts(mounts=None) -> list:
 
 def mount_of(path: str, mounts=None) -> str:
     """Punkt montowania, na ktorym lezy sciezka (najdluzszy pasujacy prefiks)."""
+    if osal.is_windows():  # na Windows 'punktem montowania' jest litera dysku: "C:\\" (tak samo jak w disks.list_disks_windows)
+        drive = ntpath.splitdrive(path)[0]
+        return drive.upper() + "\\" if drive else "/"
     best = "/"
     for mp, _fs in (mounts if mounts is not None else read_mounts()):
         if (path == mp or path.startswith(mp.rstrip("/") + "/")) and len(mp) > len(best):
@@ -856,7 +859,17 @@ def games_entries(running) -> list:
 def scan(status=lambda _msg: None) -> list:
     if osal.is_windows():
         from . import scan_windows
-        return scan_windows.scan(status=status)
+        cats = scan_windows.scan(status=status)
+        try:
+            labels = disks_mod.mount_labels()
+        except Exception:  # lista dyskow jest dodatkiem: bez niej pozycje zostaja bez opisu dysku
+            labels = {}
+        for cat in cats:
+            for e in cat.entries:
+                if not e.disk:
+                    mp = mount_of(e.paths[0] if e.paths else str(HOME))
+                    e.disk = labels.get(mp, mp)
+        return cats
     cats: list = []
     running = running_names()
 

@@ -56,6 +56,21 @@ RULES: list = [
     ("~/appdata", KEEP, "Dane programów", "Katalog AppData.", "Ustawienia i dane programów - nie usuwam."),
     ("~/onedrive", KEEP, "OneDrive", "Pliki synchronizowane z chmurą.", "Usunięcie pliku usuwa też kopię w chmurze - nie ruszam."),
     ("~/documents", KEEP, "Dokumenty", "Twoje dokumenty.", "Nie usuwam."),
+    # ---- pliki systemowe profilu leza w katalogu domowym obok Twoich plikow: nigdy nie sa do usuniecia
+    ("~/ntuser.dat*", KEEP, "Rejestr użytkownika", "Plik rejestru profilu Windows (NTUSER.DAT i jego dzienniki).",
+     "Usunięcie uszkodzi profil użytkownika - nie ruszam."),
+    ("~/ntuser.ini", KEEP, "Rejestr użytkownika", "Ustawienia profilu Windows.", "Nie usuwam."),
+    ("~/.ssh", KEEP, "Klucze SSH", "Klucze i konfiguracja SSH.", "Nie usuwam."),
+    ("~/.gnupg", KEEP, "Klucze GPG", "Klucze GPG.", "Nie usuwam."),
+    ("~/application data", KEEP, "Dowiązanie do AppData", "Stare dowiązanie zgodności do AppData.", "Nie usuwam."),
+    ("~/local settings", KEEP, "Dowiązanie do AppData", "Stare dowiązanie zgodności do AppData.", "Nie usuwam."),
+    ("~/my documents", KEEP, "Dowiązanie do Dokumentów", "Stare dowiązanie zgodności.", "Nie usuwam."),
+    ("~/start menu", KEEP, "Menu Start", "Skróty menu Start.", "Nie usuwam."),
+    ("~/cookies", KEEP, "Dowiązanie zgodności", "Stare dowiązanie zgodności.", "Nie usuwam."),
+    ("~/nethood", KEEP, "Dowiązanie zgodności", "Stare dowiązanie zgodności.", "Nie usuwam."),
+    ("~/printhood", KEEP, "Dowiązanie zgodności", "Stare dowiązanie zgodności.", "Nie usuwam."),
+    ("~/sendto", KEEP, "Menu Wyślij do", "Skróty menu Wyślij do.", "Nie usuwam."),
+    ("~/templates", KEEP, "Szablony Windows", "Dowiązanie zgodności do szablonów.", "Nie usuwam."),
 ]
 
 # katalogi systemowe, ktorych program nigdy nie rusza (porownanie po normalizacji, bez wielkosci liter)

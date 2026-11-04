@@ -1,5 +1,13 @@
 # Historia zmian
 
+## 2.21.2 - Windows: filtr dysków i podział wg dysków
+
+- Windows: pozycje ze skanu dostają teraz dysk (litera `C:\\`), więc filtr „Wszystkie dyski” nie pokazuje „0 pozycji” przy każdym dysku, a raport nie wpisuje wszystkiego do „(nieznany)”.
+
+## 2.21.1 - Windows: ochrona plików profilu
+
+- Windows: `NTUSER.DAT` (i jego dzienniki), `ntuser.ini`, `.ssh`, `.gnupg` oraz stare dowiązania zgodności (`Application Data`, `Local Settings`, `My Documents`, `Start Menu` itd.) są „Nie ruszaj”. Wcześniej leżały w katalogu domowym jako „Twoje pliki” z polem wyboru, a przy włączonym usuwaniu dałoby się je zaznaczyć.
+
 ## 2.21.0 - Windows: czyszczenie włączone
 
 - Windows: usuwanie działa (wcześniej zablokowane). Osobny mechanizm `winfs.py`: odmawia przy ścieżkach przez junction/dowiązanie (`realpath` musi się zgadzać), nigdy nie rusza korzenia dysku ani katalogu domowego, tylko pozycje ocenione jako Bezpieczne/Do przejrzenia (lub wybrane ręcznie poza „Nie ruszaj”); wewnątrz czyszczonych katalogów dowiązania usuwa jako same dowiązania; pliki używane przez programy pomija z komunikatem; wybrane ręcznie idą do Kosza (PowerShell, ścieżka przez zmienną środowiskową).

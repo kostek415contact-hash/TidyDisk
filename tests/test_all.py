@@ -2382,5 +2382,17 @@ finally:
     set_d.RUNTIME["protected"] = _saved[2]
 shutil.rmtree(_wd, ignore_errors=True)
 
+_kw2 = kb_.KnowledgeBase("C:\\Users\\Me", [], system="windows")
+check(all(_kw2.classify_file("C:\\Users\\Me\\" + n).rating == "keep" for n in ("NTUSER.DAT", "ntuser.dat.LOG1", "NTUSER.DAT{2ad8}.TMContainer0001.regtrans-ms", "ntuser.ini", ".ssh\\id_rsa", "Application Data")), "kb Windows: NTUSER.DAT, klucze i dowiazania zgodnosci = nie ruszaj")
+check(_kw2.classify_file("C:\\Users\\Me\\notatki.txt").rating == "mine", "kb Windows: zwykly plik w profilu nadal Twoj")
+
+import tidydisk.osal as _os_m
+_old_win = _os_m.is_windows
+_os_m.is_windows = lambda: True
+try:
+    check(core.mount_of("c:\\Users\\Me\\Downloads\\a.zip") == "C:\\" and core.mount_of("D:\\x") == "D:\\", "mount_of na Windows: litera dysku jak w liscie dyskow")
+finally:
+    _os_m.is_windows = _old_win
+
 print("WSZYSTKO OK" if not fails else f"BLEDY: {len(fails)}")
 sys.exit(1 if fails else 0)
