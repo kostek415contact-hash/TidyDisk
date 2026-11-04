@@ -1,5 +1,11 @@
 # Historia zmian
 
+## 2.23.3 - Mniej fałszywych odmów przy ochronie folderów
+
+- Kontrola „czy w środku jest coś chronionego” nie odmawia już dla głębokich ani wielkich folderów (np. `node_modules`): `.git`/`.ssh`/`.gnupg` szukane są na każdej głębokości (limit 2 mln elementów), ocena bazy wiedzy tylko do 5 poziomów. Nieczytelny podfolder nadal oznacza odmowę. Junctiony i dowiązania nie są przekraczane.
+- Czytelniejszy komunikat odmowy.
+- Nie uruchamiane jeszcze na prawdziwym Windows.
+
 ## 2.23.2 - Poprawki po drugim audycie
 
 - Bezpieczeństwo: folder z `.git`/`.ssh`/`.gnupg` albo innym elementem „Nie ruszaj” w środku nie trafia już do Kosza (wcześniej kontrola była tylko przy trwałym usuwaniu). Kontrola sięga 8 poziomów i do 100 000 elementów, a gdy folder jest za duży lub za głęboki, program odmawia zamiast zgadywać.

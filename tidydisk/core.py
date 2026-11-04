@@ -331,7 +331,7 @@ def trash_path(path: str, errors: list) -> None:
     if os.path.isdir(path) and not os.path.islink(path):
         kept = holds_keep(path)
         if kept:
-            errors.append(f"pominięto (w środku jest {kept} - nie ruszam): {path}")
+            errors.append(f"pominięto ({kept}): {path}")
             return
     if osal.is_windows():
         ok, why = win_check(path, user=True)
@@ -432,30 +432,40 @@ def advice_entry(a: list, disk: str = "") -> "Entry | None":
 KEEP_NAMES = {".git", ".ssh", ".gnupg"}
 
 
-def holds_keep(path: str, depth: int = 8, budget: int = 100000) -> str:
-    """Nazwa chronionego elementu w srodku folderu (.git/.ssh/.gnupg albo cokolwiek, co baza wiedzy ocenia jako 'Nie ruszaj')
-    albo ''. Gdy folder jest zbyt duzy/glebokii, zeby go przejrzec, zwraca komunikat odmowy (bezpiecznie: 'nie wiem' = nie usuwamy)."""
-    todo, seen = [(path, 0)], 0
-    win = osal.is_windows()
+def holds_keep(path: str, depth: int = 64, budget: int = 2_000_000) -> str:
+    """Powod odmowy (pusty napis = mozna), gdy w srodku folderu jest cos chronionego: .git/.ssh/.gnupg na dowolnej glebokosci
+    albo folder, ktory baza wiedzy ocenia jako 'Nie ruszaj' (sprawdzane do 5 poziomow i 20 000 folderow, zeby nie spowalniac).
+    'Nie wiem' (nieczytelny podfolder, zbyt wielki folder) = odmowa. Dowiazan i junctionow nie przekraczamy."""
+    todo, seen, classified = [(path, 0)], 0, 0
     while todo:
         if seen >= budget:
-            return "zbyt dużo elementów, żeby sprawdzić, czy nic chronionego nie ma w środku"
+            return "w środku jest zbyt dużo elementów, żeby sprawdzić, czy nic chronionego tam nie ma"
         p, d = todo.pop()
         try:
             with os.scandir(p) as it:
                 for e in it:
                     seen += 1
                     if e.name.lower() in KEEP_NAMES:
-                        return e.name
-                    if e.is_dir(follow_symlinks=False):
-                        if d >= depth:
-                            return "zbyt głęboko zagnieżdżone foldery, żeby sprawdzić, czy nic chronionego nie ma w środku"
+                        return f"w środku jest {e.name}"
+                    if not e.is_dir(follow_symlinks=False):
+                        continue
+                    try:
+                        if winfs.is_reparse(e.stat(follow_symlinks=False)):
+                            continue
+                    except OSError:
+                        continue
+                    if d >= depth:
+                        return "foldery są zbyt głęboko zagnieżdżone, żeby sprawdzić, czy nic chronionego w nich nie ma"
+                    if d < 5 and classified < 20000:
+                        classified += 1
                         v = KB.classify(e.path)
                         if v.rating == kb.KEEP:
-                            return v.title
-                        todo.append((e.path, d + 1))
-        except OSError:
-            continue
+                            return f"w środku jest {v.title}"
+                    todo.append((e.path, d + 1))
+        except OSError as ex:
+            if p == path and isinstance(ex, FileNotFoundError):
+                return ""
+            return f"nie mogę odczytać folderu {os.path.basename(p)} ({ex.strerror or ex}), więc nie wiem, co jest w środku"
     return ""
 
 
@@ -490,7 +500,7 @@ def _win_remove(path: str, errors: list, user: bool) -> None:
     if user and os.path.isdir(path):
         kept = holds_keep(path)
         if kept:
-            errors.append(f"pominięto (w środku jest {kept} - nie ruszam): {path}")
+            errors.append(f"pominięto ({kept}): {path}")
             return
     winfs.remove_item(path, errors)
 
@@ -521,7 +531,7 @@ def remove_path(path: str, errors: list, user: bool = False) -> None:
         if os.path.isdir(target) and not os.path.islink(target):
             kept = holds_keep(target)
             if kept:
-                errors.append(f"pominięto (w środku jest {kept} - nie ruszam): {path}")
+                errors.append(f"pominięto ({kept}): {path}")
                 return
         ok, why = is_user_target(target)  # ponowna kontrola na rozwiazanej sciezce
         if not ok:
