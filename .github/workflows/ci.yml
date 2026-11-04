@@ -84,3 +84,13 @@ jobs:
         with:
           name: tidydisk-windows-exe
           path: dist/tidydisk.exe
+      - name: Budowa tidydisk-gui.exe (okno, PyQt6)
+        env:
+          BUILD_GUI: "1"
+        run: |
+          pip install PyQt6
+          powershell -File packaging/windows/build-exe.ps1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tidydisk-windows-gui
+          path: dist/tidydisk-gui.exe
