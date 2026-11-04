@@ -268,8 +268,8 @@ def main(argv=None) -> int:
     p = build_parser()
     a = p.parse_args(argv)
     out = sys.stdout
-    if osal.is_windows() and a.cmd in ("analyze", "ai", "background", "schedule"):
-        sys.stderr.write(f"Polecenie '{a.cmd}' nie jest jeszcze dostępne na Windows (działają: status, scan, report, config, rules).\n")
+    if osal.is_windows() and a.cmd == "schedule" and getattr(a, "ai", False):
+        sys.stderr.write("Harmonogram AI w tle nie jest jeszcze dostępny na Windows (działa harmonogram sprawdzania dysku).\n")
         return EXIT_USAGE
     if osal.SYSTEM == "linux" and a.cmd not in ("schedule",):
         from . import schedule as _sch

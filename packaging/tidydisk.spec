@@ -1,5 +1,5 @@
 Name:           tidydisk
-Version:        2.21.2
+Version:        2.22.0
 Release:        1%{?dist}
 Summary:        Free up disk space safely, with optional local AI review
 License:        GPL-3.0-or-later
@@ -67,6 +67,9 @@ desktop-file-validate %{buildroot}%{_datadir}/applications/%{name}.desktop
 %{_libexecdir}/%{name}/
 
 %changelog
+* Wed Nov 04 2026 TidyDisk contributors <noreply@example.invalid> - 2.22.0-1
+- Windows: file analysis, AI and scheduler support
+
 * Wed Nov 04 2026 TidyDisk contributors <noreply@example.invalid> - 2.21.2-1
 - Windows: assign drive to scan entries
 

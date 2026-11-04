@@ -2394,5 +2394,16 @@ try:
 finally:
     _os_m.is_windows = _old_win
 
+from tidydisk import schedule as sch_w
+_ta = sch_w.win_task_args("weekly", "03:30", 20, 5, command='"C:\\x\\tidydisk.exe"')
+check(_ta[:4] == ["/Create", "/TN", "TidyDisk-check", "/TR"] and _ta[4] == '"C:\\x\\tidydisk.exe" notify --min-free 20 --min-reclaim 5'
+      and "WEEKLY" in _ta and "SUN" in _ta and "03:30" in _ta and _ta[-1] == "/F", "schtasks: argumenty zadania tygodniowego")
+check("MONTHLY" in sch_w.win_task_args("monthly", "", 1, 1, command="x") and "10:00" in sch_w.win_task_args("daily", "", 1, 1, command="x"), "schtasks: miesieczne i domyslna godzina")
+try:
+    sch_w.win_task_args("weekly", "25:00", 1, 1, command="x"); _bad = False
+except ValueError:
+    _bad = True
+check(_bad, "schtasks: zla godzina odrzucona")
+
 print("WSZYSTKO OK" if not fails else f"BLEDY: {len(fails)}")
 sys.exit(1 if fails else 0)

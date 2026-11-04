@@ -33,6 +33,31 @@ LOCAL_FUSE = {"fuse.ntfs-3g", "fuse.exfat", "fuse.bindfs", "fuse.encfs", "fuse.g
 
 
 
+_WIN = os.name == "nt"
+
+
+def _fwd(path: str) -> str:
+    """Wewnatrz skanera sciezki maja postac z '/' (takze na Windows); na koncu wynik wraca do postaci natywnej (_to_native)."""
+    return path.replace("\\", "/") if _WIN else path
+
+
+def _lc(path: str) -> str:
+    return path.lower() if _WIN else path  # baza wiedzy Windows trzyma 'home' malymi literami
+
+
+def _to_native(res: "ScanResult") -> None:
+    if not _WIN:
+        return
+    n = lambda p: p.replace("/", "\\")
+    res.root = n(res.root)
+    res.nodes = {n(k): v for k, v in res.nodes.items()}
+    for t in res.top_files:
+        t[1] = n(t[1])
+    for a in res.advice:
+        a[1] = n(a[1])
+    res.keepers = {n(k) for k in res.keepers}
+
+
 def _alloc(st) -> int:  # jak osal.alloc_size; tu osobno, bo scanner trafia tez do samodzielnego skryptu admina
     blocks = getattr(st, "st_blocks", None)
     return blocks * 512 if blocks is not None else int(st.st_size)
@@ -88,14 +113,14 @@ class ScanResult:
         if idx is None or self.__dict__.get("_index_n") != len(self.nodes):
             idx = {}
             for p, (size, files, rating, title, _d) in self.nodes.items():
-                if p == self.root or p == "/":
+                if p == self.root or p == "/" or p.rstrip("/\\") == self.root.rstrip("/\\"):
                     continue
-                parent = p.rsplit("/", 1)[0] or "/"
+                parent = os.path.dirname(p.rstrip("/\\")) or "/"
                 idx.setdefault(parent, []).append((p, size, files, rating, title))
             for lst in idx.values():
                 lst.sort(key=lambda x: -x[1])
             self._index, self._index_n = idx, len(self.nodes)
-        return list(idx.get(path.rstrip("/") or "/", []))
+        return list(idx.get(path.rstrip("/\\") or "/", []))
 
 
 # ------------------------------------------------------------------ algorytm --
@@ -355,6 +380,7 @@ MANAGED = (
 CODE = set("dll so jar class pyc pyo o a ko dylib lib pdb map js mjs ts py h hpp c cc cpp rs go java cs "
            "json xml yaml yml toml ini cfg conf sh bat lua".split())
 INBOX = ("Downloads", "Pobrane", "Desktop", "Pulpit")
+_INBOX_LC = {i.lower() for i in INBOX}
 
 
 _MANAGED_RE = re.compile("|".join(re.escape(m) for m in MANAGED))
@@ -366,10 +392,10 @@ def _managed(path: str) -> bool:
 
 def _in_inbox(path: str, home: str) -> bool:
     """Plik lezy w Pobranych/Pulpicie (najwyzej 3 poziomy w glab) - tam instalatory sa naprawde 'do uzycia raz'."""
-    if not path.startswith(home + "/"):
+    if not _lc(path).startswith(home + "/"):
         return False
     parts = path[len(home) + 1:].split("/")
-    return bool(parts) and parts[0] in INBOX and len(parts) <= 4
+    return bool(parts) and (parts[0] in INBOX or (_WIN and parts[0].lower() in _INBOX_LC)) and len(parts) <= 4
 
 
 ARTIFACTS = {
@@ -479,7 +505,7 @@ def old_versions(files: list) -> list:
 
 
 def _covered(path: str, home: str) -> bool:
-    return any(path.startswith(home + c) for c in COVERED) or path.startswith("/var/cache")
+    return any(_lc(path).startswith(home + c) for c in COVERED) or path.startswith("/var/cache")
 
 
 def scan(root: str, kbase: "kb.KnowledgeBase", progress=None, cancel=None,
@@ -497,7 +523,7 @@ def scan(root: str, kbase: "kb.KnowledgeBase", progress=None, cancel=None,
     by_size: dict = {}  # rozmiar -> [(sciezka, mtime, ocena)] do szukania duplikatow
     rpms: list = []
     n_dup_files = 0
-    root = root.rstrip("/") or "/"
+    root = _fwd(root).rstrip("/") or "/"
     root_v = kbase.classify(root)
     home = kbase.home
     stack: list = []
@@ -585,14 +611,15 @@ def scan(root: str, kbase: "kb.KnowledgeBase", progress=None, cancel=None,
         except OSError:
             res.errors += 1
             continue
+        epath = _fwd(entry.path)
         blocks = _alloc(st)
         if is_dir:
-            if entry.path in skip:
+            if epath in skip:
                 continue
             fr[3] += blocks
             fr[7].add(entry.name)
             res.by_rating[verdict.rating] += blocks
-            push(entry.path, depth + 1, kbase.classify_dir(entry.path, verdict), st.st_mtime)
+            push(epath, depth + 1, kbase.classify_dir(epath, verdict), st.st_mtime)
             continue
         if st.st_nlink > 1:
             key = (st.st_dev, st.st_ino)
@@ -609,29 +636,29 @@ def scan(root: str, kbase: "kb.KnowledgeBase", progress=None, cancel=None,
         cat[0] += blocks
         cat[1] += 1
         if blocks >= MIN_LISTED:
-            item = (blocks, entry.path, int(st.st_mtime))
+            item = (blocks, epath, int(st.st_mtime))
             if len(heap) < top_n:
                 heapq.heappush(heap, item)
             elif item > heap[0]:
                 heapq.heapreplace(heap, item)
         if advise and verdict.rating in (kb.REVIEW, kb.MINE) and not fr[10]:
             ext = kb.ext_of(entry.name)
-            code = ext in CODE or (ext == "exe" and not _in_inbox(entry.path, home))
+            code = ext in CODE or (ext == "exe" and not _in_inbox(epath, home))
             mt = st.st_mtime
             if not code and ext in VERSIONED:
-                fr[9].append((entry.name, entry.path, blocks, mt, st.st_atime))
+                fr[9].append((entry.name, epath, blocks, mt, st.st_atime))
             if code:
                 pass
             elif ext in ARCHIVE or ext == "rpm":
-                fr[6].append((entry.name, entry.path, blocks, mt, st.st_atime))
+                fr[6].append((entry.name, epath, blocks, mt, st.st_atime))
             else:
                 sc, why = score_item(entry.name, rating, blocks, mt, st.st_atime, now,
-                                     inbox=_in_inbox(entry.path, home))
+                                     inbox=_in_inbox(epath, home))
                 if sc >= ms and blocks >= 32 * 1024:
-                    fv = kbase.classify_file(entry.path, verdict)
-                    cands.append([sc, entry.path, blocks, int(mt), fv.rating, fv.title, why, "file"])
+                    fv = kbase.classify_file(epath, verdict)
+                    cands.append([sc, epath, blocks, int(mt), fv.rating, fv.title, why, "file"])
             if not code and st.st_size >= dup_min and n_dup_files < 300000:
-                by_size.setdefault(st.st_size, []).append((entry.path, st.st_mtime, verdict.rating))
+                by_size.setdefault(st.st_size, []).append((epath, st.st_mtime, verdict.rating))
                 n_dup_files += 1
     for fr in stack:  # po przerwaniu
         try:
@@ -668,7 +695,7 @@ def scan(root: str, kbase: "kb.KnowledgeBase", progress=None, cancel=None,
                     continue
                 name = os.path.basename(p)
                 where = os.path.dirname(orig[0])
-                where = ("~" + where[len(home):]) if where.startswith(home) else where
+                where = ("~" + where[len(home):]) if _lc(where).startswith(home) else where
                 sc, why = score_item(name, rt, _alloc(st), st.st_mtime, st.st_atime, now,
                                      [(50, kb.reason("dup", os.path.basename(orig[0]), where))],
                                      _in_inbox(p, home))
@@ -701,6 +728,7 @@ def scan(root: str, kbase: "kb.KnowledgeBase", progress=None, cancel=None,
         cands.sort(key=lambda c: (-c[0], -c[2]))
         res.advice = [c + [""] for c in cands[:1500]]
     res.seconds = round(time.monotonic() - t0, 1)
+    _to_native(res)
     return res
 
 

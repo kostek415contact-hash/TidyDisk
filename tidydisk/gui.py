@@ -919,9 +919,6 @@ class CleanupPage(QWidget):
                                "rozmiar i nazwy plików obok - nie zawartość. To tylko podpowiedź.")
         self.btn_ai.clicked.connect(lambda: self._cur_entry is not None and self.win.ask_ai(self._cur_entry))
         self.btn_ai.setEnabled(False)
-        if osal.is_windows():  # AI i analiza plikow: tylko Linux (na Windows skan i raport)
-            self.btn_ai.hide()
-            self.btn_ai_review.hide()
         self.panel = DetailPanel(self)
         body = QHBoxLayout()  # lista po lewej, szczegoly w panelu po prawej
         body.setSpacing(12)
@@ -1122,7 +1119,7 @@ class CleanupPage(QWidget):
         else:
             self.pages.setCurrentIndex(idx)
         self.adv_status.setVisible(idx == self.TAB_ADVICE)
-        self.btn_analyze.setVisible(idx == self.TAB_ADVICE and not osal.is_windows())
+        self.btn_analyze.setVisible(idx == self.TAB_ADVICE)
 
     def _refresh_tab_titles(self) -> None:
         n_adv = sum(len(c.entries) for c in self.adv_cats)
@@ -2130,10 +2127,15 @@ class HistoryPage(QWidget):
         on = schedule.is_enabled()
         self.btn_sched_on.setEnabled(not on)
         self.btn_sched_off.setEnabled(on)
+        self.changes_label.setText(changes.describe(home=str(core.HOME), limit=6))
+        if osal.is_windows():  # praca AI w tle = timer systemd; na Windows jeszcze brak
+            self.btn_ai_on.setEnabled(False)
+            self.btn_ai_off.setEnabled(False)
+            self.ai_sched_label.setText("Ocena AI w tle: na Windows jeszcze niedostępna.")
+            return
         ai_on = schedule.is_ai_enabled()
         self.btn_ai_on.setEnabled(not ai_on)
         self.btn_ai_off.setEnabled(ai_on)
-        self.changes_label.setText(changes.describe(home=str(core.HOME), limit=6))
         last = background.describe_last()
         self.ai_sched_label.setText("Ocena AI w tle: " + ("włączona" if ai_on else "wyłączona") + (f". {last}" if last else ""))
 

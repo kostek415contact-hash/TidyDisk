@@ -1,5 +1,13 @@
 # Historia zmian
 
+## 2.22.0 - Windows: analiza plików, AI i harmonogram
+
+- Windows: analiza plików (zakładka Polecane: duplikaty, instalatory, niedokończone pobierania, starsze wersje, najwięksi) - skaner liczy wewnątrz na ścieżkach z `/` i zwraca wynik w postaci natywnej (`C:\\...`); rozpoznawanie „Pobranych” i katalogu domowego nie zależy od wielkości liter.
+- Windows: przyciski AI (lokalny serwer modelu po HTTP) i „Analizuj ponownie” widoczne; polecenia `analyze` i `ai` w terminalu.
+- Windows: harmonogram sprawdzania dysku przez Harmonogram zadań (`schtasks`, zadanie `TidyDisk-check`) i dymek w zasobniku (PowerShell). Automatyczne czyszczenie w harmonogramie i praca AI w tle nadal tylko na Linuksie.
+- Raport na Windows bez wiersza „jądro”.
+- Nie uruchamiane jeszcze na prawdziwym Windows (tylko symulacja trybu Windows na Linuksie).
+
 ## 2.21.2 - Windows: filtr dysków i podział wg dysków
 
 - Windows: pozycje ze skanu dostają teraz dysk (litera `C:\\`), więc filtr „Wszystkie dyski” nie pokazuje „0 pozycji” przy każdym dysku, a raport nie wpisuje wszystkiego do „(nieznany)”.

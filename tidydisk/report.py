@@ -98,7 +98,7 @@ def build_markdown(cats, protected=None, scan=None, disks=None, anon: Anon | Non
     L.append(f"# Raport TidyDisk {__version__}")
     L.append("")
     L.append(f"- Data: {time.strftime('%Y-%m-%d %H:%M')}")
-    L.append(f"- System: {os_pretty()}, jądro {osal.kernel_release()}")
+    L.append(f"- System: {os_pretty()}" + ("" if osal.is_windows() else f", jądro {osal.kernel_release()}"))
     L.append(f"- Tryb: {'symulacja (nic nie zostało usunięte)' if dry_run else 'lista przed sprzątaniem'}")
     mode = settings.load().get("search_mode", "")
     label = {"algorithm": "niedokładny (tylko algorytm)", "assisted": "dokładny (algorytm + AI)",

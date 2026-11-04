@@ -79,4 +79,4 @@ def top_base(nodes: dict, roots=()) -> str:
             return r
     if not nodes:
         return ""
-    return min(nodes, key=lambda p: (p.count("/"), -nodes[p][0]))
+    return min(nodes, key=lambda p: (p.count("/") + p.count("\\"), -nodes[p][0]))

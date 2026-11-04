@@ -86,7 +86,7 @@ def date_text(ts: int) -> str:
 
 def short_path(path: str) -> str:
     h = str(HOME)
-    return "~" + path[len(h):] if path == h or path.startswith(h + "/") else path
+    return "~" + path[len(h):] if path == h or path.startswith(h + "/") or path.startswith(h + "\\") else path
 
 
 @dataclass

@@ -109,7 +109,41 @@ def _systemctl(*a) -> int:
         return 127
 
 
+WIN_TASK = "TidyDisk-check"
+
+
+def win_command() -> str:
+    """Polecenie dla Harmonogramu zadan: .exe (po zbudowaniu PyInstallerem) albo `python -m tidydisk`."""
+    if getattr(sys, "frozen", False):
+        return f'"{sys.executable}"'
+    return f'"{sys.executable}" -m tidydisk'
+
+
+def win_task_args(every: str, at: str, min_free_gb: int, min_reclaim_gb: int, command: str | None = None) -> list:
+    """Argumenty `schtasks /Create` (bez 'schtasks'). Sprawdzanie dysku z powiadomieniem, nic nie usuwa."""
+    if every not in INTERVALS:
+        raise ValueError("every: daily|weekly|monthly")
+    hh, mm = (at or "10:00").split(":")
+    if not (0 <= int(hh) < 24 and 0 <= int(mm) < 60):
+        raise ValueError("godzina: HH:MM")
+    sc = {"daily": ["/SC", "DAILY"], "weekly": ["/SC", "WEEKLY", "/D", "SUN"], "monthly": ["/SC", "MONTHLY", "/D", "1"]}[every]
+    tr = f"{command or win_command()} notify --min-free {int(min_free_gb)} --min-reclaim {int(min_reclaim_gb)}"
+    return ["/Create", "/TN", WIN_TASK, "/TR", tr, *sc, "/ST", f"{int(hh):02d}:{int(mm):02d}", "/F"]
+
+
+def _schtasks(*a) -> int:
+    try:
+        return subprocess.run(["schtasks", *a], capture_output=True, timeout=30).returncode
+    except (OSError, subprocess.SubprocessError):
+        return 127
+
+
 def enable(every: str = "weekly", min_free_gb: int = 20, min_reclaim_gb: int = 5, auto_clean: bool = False, at: str = "") -> str:
+    if osal.is_windows():
+        if auto_clean:
+            raise ValueError("Automatyczne czyszczenie w harmonogramie nie jest jeszcze dostępne na Windows (tylko sprawdzanie i powiadomienie).")
+        code = _schtasks(*win_task_args(every, at, min_free_gb, min_reclaim_gb))
+        return "włączony" if code == 0 else f"schtasks zwrócił kod {code}"
     if osal.SYSTEM != "linux":
         raise ValueError("Harmonogram (systemd) działa tylko na Linuksie; na Windows użyj Harmonogramu zadań (schtasks).")
     if every not in INTERVALS:
@@ -125,6 +159,9 @@ def enable(every: str = "weekly", min_free_gb: int = 20, min_reclaim_gb: int = 5
 
 
 def disable() -> str:
+    if osal.is_windows():
+        _schtasks("/Delete", "/TN", WIN_TASK, "/F")
+        return "wyłączony"
     if osal.SYSTEM != "linux":
         raise ValueError("Harmonogram (systemd) działa tylko na Linuksie; na Windows użyj Harmonogramu zadań (schtasks).")
     _systemctl("disable", "--now", f"{UNIT}.timer")
@@ -136,6 +173,8 @@ def disable() -> str:
 
 
 def is_enabled() -> bool:
+    if osal.is_windows():
+        return _schtasks("/Query", "/TN", WIN_TASK) == 0
     return (unit_dir() / f"{UNIT}.timer").exists()
 
 
@@ -154,7 +193,16 @@ def should_notify(free: int, safe: int, min_free_gb: int, min_reclaim_gb: int) -
 
 
 def notify(text: str) -> bool:
-    """Powiadomienie pulpitu (KDE/GNOME) przez notify-send."""
+    """Powiadomienie pulpitu (KDE/GNOME) przez notify-send; na Windows dymek w zasobniku przez PowerShell."""
+    if osal.is_windows():
+        ps = ("Add-Type -AssemblyName System.Windows.Forms; Add-Type -AssemblyName System.Drawing; "
+              "$n=New-Object System.Windows.Forms.NotifyIcon; $n.Icon=[System.Drawing.SystemIcons]::Information; "
+              "$n.Visible=$true; $n.ShowBalloonTip(10000,'TidyDisk',$env:TIDYDISK_MSG,'Info'); Start-Sleep 11; $n.Dispose()")
+        try:
+            return subprocess.run(["powershell", "-NoProfile", "-NonInteractive", "-Command", ps], timeout=40, capture_output=True,
+                                  env=dict(os.environ, TIDYDISK_MSG=text)).returncode == 0
+        except (OSError, subprocess.SubprocessError):
+            return False
     exe = shutil.which("notify-send")
     if not exe:
         return False
