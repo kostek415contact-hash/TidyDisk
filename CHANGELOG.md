@@ -1,5 +1,9 @@
 # Historia zmian
 
+## 2.19.4 - CI: budowa RPM
+
+- CI instaluje `python3-devel` (wymagane przez `BuildRequires` w specu); wcześniej `rpmbuild` przerywał na brakujących zależnościach.
+
 ## 2.19.3 - pyflakes: czysto
 
 - `osal.py`: brakujący import `Path` (nazwa w adnotacji); `widgets.py`: reeksport z `progress` jawnie użyty (pyflakes nie czyta `noqa`), usunięty nieużywany `os` i zmienna `pure`; usunięte nieużywane zmienne w `core.py`, `ai.py`, `gui.py`.
