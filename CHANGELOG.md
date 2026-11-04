@@ -1,5 +1,9 @@
 # Historia zmian
 
+## 2.19.5 - Windows: bez informacji o btrfs
+
+- Test `tidydisk.exe` pod Wine (status, skan, raport) przeszedł. Poprawka: na Windows nie pokazujemy już komunikatu o migawkach btrfs (pod Wine był widoczny `/proc/mounts` hosta).
+
 ## 2.19.4 - CI: budowa RPM
 
 - CI instaluje `python3-devel` (wymagane przez `BuildRequires` w specu); wcześniej `rpmbuild` przerywał na brakujących zależnościach.

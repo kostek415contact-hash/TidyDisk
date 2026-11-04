@@ -2220,5 +2220,17 @@ check([d.name for d in _wd] == ["C:", "D:"] and _wd[0].parts[0].fstype == "NTFS"
 check(_wd[1].kind.startswith("Wymienny") and _wd[0].parts[0].mounts == ["C:\\"], "dyski Windows: typ i punkt montowania")
 check(dk_.mount_labels(_wd).get("C:\\", "").startswith("C: ·"), "dyski Windows: etykieta dysku w raporcie")
 
+# ---- migawki btrfs: na Windows nie ma ich wcale (takze pod Wine, gdzie /proc/mounts bywa widoczny)
+from tidydisk import snapshots as sn_
+_o = osal_w.SYSTEM
+try:
+    osal_w.SYSTEM = "windows"
+    _fm = Path(_tf.mkdtemp()) / "mounts-btrfs"; _fm.write_text("/dev/sda1 / btrfs rw 0 0\n")
+    check(sn_.detect(str(_fm))["btrfs"] is False and sn_.detect(str(_fm))["text"] == "", "migawki: Windows = brak komunikatu o btrfs")
+    osal_w.SYSTEM = "linux"
+    check(sn_.detect(str(_fm))["btrfs"] is True, "migawki: Linux bez zmian")
+finally:
+    osal_w.SYSTEM = _o
+
 print("WSZYSTKO OK" if not fails else f"BLEDY: {len(fails)}")
 sys.exit(1 if fails else 0)

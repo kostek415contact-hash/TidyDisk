@@ -1,5 +1,5 @@
 Name:           tidydisk
-Version:        2.19.4
+Version:        2.19.5
 Release:        1%{?dist}
 Summary:        Free up disk space safely, with optional local AI review
 License:        GPL-3.0-or-later
@@ -66,7 +66,7 @@ desktop-file-validate %{buildroot}%{_datadir}/applications/%{name}.desktop
 %{_libexecdir}/%{name}/
 
 %changelog
-* Wed Nov 04 2026 TidyDisk contributors - 2.19.4-1
+* Wed Nov 04 2026 TidyDisk contributors - 2.19.5-1
 - Package for Fedora (RPM); see CHANGELOG.md
 
 * Wed Nov 04 2026 TidyDisk contributors - 2.16.0-1

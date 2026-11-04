@@ -4,6 +4,8 @@ from __future__ import annotations
 import os
 import shutil
 
+from . import osal
+
 
 def btrfs_mounted(mounts_file: str = "/proc/mounts") -> bool:
     try:
@@ -23,7 +25,7 @@ def _count_dirs(path: str, numeric: bool) -> int | None:
 
 def detect(mounts_file: str = "/proc/mounts", snapper_dir: str = "/.snapshots", timeshift_dir: str = "/timeshift/snapshots") -> dict:
     """{'btrfs': bool, 'tool': 'snapper'|'timeshift'|'', 'count': int|None, 'text': str}"""
-    bt = btrfs_mounted(mounts_file)
+    bt = btrfs_mounted(mounts_file) and not osal.is_windows()  # Windows (takze Wine): brak migawek btrfs
     out = {"btrfs": bt, "tool": "", "count": None, "text": ""}
     if not bt:
         return out
