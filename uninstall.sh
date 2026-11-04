@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+# Usuwa TidyDisk zainstalowany przez install.sh.
+set -euo pipefail
+
+PREFIX="${PREFIX:-$HOME/.local}"
+
+rm -rf "$PREFIX/share/tidydisk"
+rm -f  "$PREFIX/bin/tidydisk" \
+       "$PREFIX/share/applications/tidydisk.desktop" \
+       "$PREFIX/share/metainfo/tidydisk.metainfo.xml" \
+       "$PREFIX/share/icons/hicolor/scalable/apps/tidydisk.svg"
+rm -f "$PREFIX"/share/icons/hicolor/*x*/apps/tidydisk.png
+rm -f "$PREFIX/share/icons/hicolor/icon-theme.cache"
+
+command -v update-desktop-database >/dev/null && update-desktop-database "$PREFIX/share/applications" 2>/dev/null || true
+command -v kbuildsycoca6          >/dev/null && kbuildsycoca6 >/dev/null 2>&1 || true
+
+if [[ -e /usr/local/lib/tidydisk ]]; then
+  read -rp "Usunąć też skaner administratora (sudo)? [T/n] " ans
+  if ! [[ "$ans" =~ ^[nN]$ ]]; then
+    sudo rm -rf /usr/local/lib/tidydisk
+    rpm -q tidydisk >/dev/null 2>&1 || sudo rm -f /usr/share/polkit-1/actions/org.tidydisk.admin-scan.policy
+  fi
+fi
+
+echo "TidyDisk usuniety."

@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE policyconfig PUBLIC "-//freedesktop//DTD PolicyKit Policy Configuration 1.0//EN"
+ "http://www.freedesktop.org/standards/PolicyKit/1/policyconfig.dtd">
+<policyconfig>
+  <vendor>TidyDisk</vendor>
+  <action id="org.tidydisk.admin-scan">
+    <description>Scan the whole system for files that can be cleaned (read-only)</description>
+    <description xml:lang="pl">Przeskanuj cały system w poszukiwaniu plików do wyczyszczenia (tylko odczyt)</description>
+    <message>Authentication is required to scan the whole system (read-only)</message>
+    <message xml:lang="pl">Skan całego systemu (tylko odczyt) wymaga uwierzytelnienia</message>
+    <icon_name>tidydisk</icon_name>
+    <defaults>
+      <allow_any>auth_admin</allow_any>
+      <allow_inactive>auth_admin</allow_inactive>
+      <allow_active>auth_admin</allow_active>
+    </defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/local/lib/tidydisk/admin_scan.py</annotate>
+    <annotate key="org.freedesktop.policykit.exec.allow_gui">true</annotate>
+  </action>
+  <action id="org.tidydisk.admin-scan-pkg">
+    <description>Scan the whole system for files that can be cleaned (read-only)</description>
+    <description xml:lang="pl">Przeskanuj cały system w poszukiwaniu plików do wyczyszczenia (tylko odczyt)</description>
+    <message>Authentication is required to scan the whole system (read-only)</message>
+    <message xml:lang="pl">Skan całego systemu (tylko odczyt) wymaga uwierzytelnienia</message>
+    <icon_name>tidydisk</icon_name>
+    <defaults>
+      <allow_any>auth_admin</allow_any>
+      <allow_inactive>auth_admin</allow_inactive>
+      <allow_active>auth_admin</allow_active>
+    </defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/libexec/tidydisk/admin_scan.py</annotate>
+    <annotate key="org.freedesktop.policykit.exec.allow_gui">true</annotate>
+  </action>
+</policyconfig>

@@ -1,0 +1,26 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=TidyDisk
+GenericName=Disk Cleaner
+GenericName[pl]=Czyszczenie dysku
+Comment=Free up disk space: caches, old kernels, unused packages
+Comment[pl]=Zwolnij miejsce na dysku: cache, stare jądra, nieużywane pakiety
+Exec=tidydisk
+Icon=tidydisk
+Terminal=false
+StartupNotify=true
+Categories=System;Utility;Qt;
+Keywords=clean;cache;disk;space;cleaner;czyszczenie;dysk;miejsce;
+StartupWMClass=tidydisk
+Actions=Scan;Background;
+
+[Desktop Action Scan]
+Name=Scan and show suggestions
+Name[pl]=Skanuj i pokaż propozycje
+Exec=tidydisk
+
+[Desktop Action Background]
+Name=Evaluate with AI in background
+Name[pl]=Oceń przez AI w tle
+Exec=tidydisk ai
