@@ -254,10 +254,22 @@ class DisksPage(QWidget):
         head.addStretch(1)
         head.addWidget(kind)
         lay.addLayout(head)
-        mounted = [p for p in d.parts if p.mount and p.size and p.group <= 1]
-        if mounted:  # pasek zajetosci calego dysku (suma zamontowanych partycji)
-            used = sum(p.used for p in mounted)
-            tot = sum(p.used + p.free for p in mounted)
+        used = tot = 0
+        shared: dict = {}
+        for p in d.parts:
+            if not (p.mount and p.size):
+                continue
+            if p.group <= 1 or not p.uuid or not p.volume_size:
+                used += p.used
+                tot += p.used + p.free
+            else:  # jeden system plikow na kilku partycjach: liczymy raz, proporcjonalnie do udzialu na tym dysku
+                g = shared.setdefault(p.uuid, [p, 0])
+                g[1] += p.size
+        for p, mine in shared.values():
+            share = min(mine / p.volume_size, 1.0)
+            used += int(p.used * share)
+            tot += int((p.used + p.free) * share)
+        if tot:  # pasek zajetosci calego dysku (suma zamontowanych systemow plikow)
             row0 = QHBoxLayout()
             row0.addWidget(usage_bar(used, tot), 1)
             lbl = QLabel(f"zajęte {fmt_size(used)} z {fmt_size(tot)}  ·  wolne {fmt_size(tot - used)}")

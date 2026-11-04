@@ -1,5 +1,5 @@
 Name:           tidydisk
-Version:        2.20.0
+Version:        2.20.1
 Release:        1%{?dist}
 Summary:        Free up disk space safely, with optional local AI review
 License:        GPL-3.0-or-later
@@ -67,6 +67,9 @@ desktop-file-validate %{buildroot}%{_datadir}/applications/%{name}.desktop
 %{_libexecdir}/%{name}/
 
 %changelog
+* Wed Nov 04 2026 TidyDisk contributors <noreply@example.invalid> - 2.20.1-1
+- Fix disk usage total for multi-partition btrfs
+
 * Wed Nov 04 2026 TidyDisk contributors <noreply@example.invalid> - 2.20.0-1
 - Audit fixes: race-free deletion, report masking, Windows console build
 * Wed Nov 04 2026 TidyDisk contributors <noreply@example.invalid> - 2.18.0-1

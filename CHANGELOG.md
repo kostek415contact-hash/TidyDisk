@@ -1,5 +1,9 @@
 # Historia zmian
 
+## 2.20.1 - Pasek zajętości dysku z btrfs na kilku partycjach
+
+- „Dyski i partycje”: system plików rozłożony na kilku partycjach (btrfs ×3) był pomijany w sumie dysku, więc dysk 931 GB pokazywał „zajęte 133 GB z 281 GB”. Teraz liczy się raz, proporcjonalnie do udziału partycji na tym dysku.
+
 ## 2.20.0 - Audyt: bezpieczeństwo usuwania, Windows, pakiety, dokumentacja
 
 Pięć niezależnych przeglądów kodu (Windows, bezpieczeństwo, pakiety/CI, logika/GUI, UX/dokumentacja). Naprawione:
