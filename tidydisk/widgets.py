@@ -19,8 +19,10 @@ from PyQt6.QtWidgets import (
 )
 
 from . import ai, core, history, osal, pipeline, preview, scanner, settings, simimg, spacelog, treemap
-from .progress import ProgressTracker, fmt_eta, load_scanstats, save_scanstats  # noqa: F401 (reeksport)
+from .progress import ProgressTracker, fmt_eta, load_scanstats, save_scanstats
 from .core import fmt_size
+
+_REEXPORT = (ProgressTracker, fmt_eta, load_scanstats, save_scanstats)  # uzywane jako widgets.* (testy, gui)
 from .viewmodel import rating_color, RATING_GLYPH
 
 FRAC_ROLE = int(Qt.ItemDataRole.UserRole.value) + 1
@@ -300,7 +302,6 @@ class AnalysisWorker(QThread):
     def run(self) -> None:
         try:
             cfg = settings.apply(settings.load())
-            pure = cfg["search_mode"] == "ai_only"
 
             def report(n, t, path, ri, nroots, root, b, names, st, txt, frac):
                 self.progress.emit(b + n)
@@ -707,7 +708,6 @@ class PhotoWorker(QThread):
         return out
 
     def run(self) -> None:
-        import os
         try:
             files = self._files()
             cache_path = str(osal.data_dir() / "photohash.json")

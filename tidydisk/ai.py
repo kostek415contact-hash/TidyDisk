@@ -989,7 +989,6 @@ def _cascade(model, advice, nodes, top_files, host, home, roots, skip, on_batch,
     _wh = {p for p, v in verdicts.items() if v[0] == "whole"} if cfg.get("ai_skip_inside", True) else set()
     stats["bez_odpowiedzi"] = sum(1 for d in folders if d["path"] not in verdicts
                                   and not any(a in _wh for a in _ancestors(d["path"])))
-    keep = [p for p, v in verdicts.items() if v[0] == "keep"]
     whole = [p for p, v in verdicts.items() if v[0] == "whole"]
     ws = set(whole)
     whole = [p for p in whole if not any(a in ws for a in _ancestors(p))]  # tylko najwyzszy 'whole'

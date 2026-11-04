@@ -7,6 +7,7 @@ from __future__ import annotations
 import os
 import shutil
 import sys
+from pathlib import Path
 
 SYSTEM = "windows" if sys.platform.startswith("win") else "macos" if sys.platform == "darwin" else "linux"
 
@@ -97,9 +98,8 @@ def disk_usage(path: str) -> tuple:
 APP_DIR = "tidydisk"
 
 
-def config_dir() -> "Path":
+def config_dir() -> Path:
     """Katalog ustawien: Linux ~/.config/tidydisk, Windows %APPDATA%\\TidyDisk, macOS ~/Library/Application Support/TidyDisk."""
-    from pathlib import Path
     if is_windows():
         return Path(os.environ.get("APPDATA") or Path.home() / "AppData" / "Roaming") / "TidyDisk"
     if SYSTEM == "macos":
@@ -107,9 +107,8 @@ def config_dir() -> "Path":
     return Path.home() / ".config" / APP_DIR
 
 
-def data_dir() -> "Path":
+def data_dir() -> Path:
     """Katalog danych (pamiec AI, historia, cache): Linux ~/.local/share/tidydisk, Windows %LOCALAPPDATA%\\TidyDisk."""
-    from pathlib import Path
     if is_windows():
         return Path(os.environ.get("LOCALAPPDATA") or Path.home() / "AppData" / "Local") / "TidyDisk"
     if SYSTEM == "macos":

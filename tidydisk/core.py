@@ -353,7 +353,7 @@ ADVICE_AUTO = 75  # od tej pewnosci zaznaczamy sami (nie dotyczy 'Twoich plikow'
 
 def advice_entry(a: list, disk: str = "") -> "Entry | None":
     """Pozycja sprzatania z propozycji algorytmu [wynik, sciezka, rozmiar, mtime, ocena, tytul, powody, rodzaj]."""
-    score, path, size, _mt, rating, title, reasons = a[0], a[1], a[2], a[3], a[4], a[5], a[6]
+    score, path, size, rating, title, reasons = a[0], a[1], a[2], a[4], a[5], a[6]
     if rating == kb.KEEP or not (is_user_target(path)[0] or is_safe_target(path)):
         return None
     if not rules.allowed(path, reasons, rating, "dir" if (len(a) > 7 and a[7] == "dir") else "file", settings.RUNTIME["rules_off"]):

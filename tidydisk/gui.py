@@ -1165,7 +1165,6 @@ class CleanupPage(QWidget):
         self.files_tree.clear()
         bold = self._bold()
         grey = QBrush(self.palette().placeholderText())
-        lock = themed(["object-locked", "lock"], QStyle.StandardPixmap.SP_DialogApplyButton)
         for cat in cats:
             if not cat.entries:
                 continue
@@ -1320,7 +1319,6 @@ class CleanupPage(QWidget):
         labels = disks.mount_labels()
         mounts = core.read_mounts()
         by_group: dict = {k: [] for k, _t, _d in ADVICE_GROUPS}
-        home = str(core.HOME)
         self.adv_items = {}
         if settings.RUNTIME.get("search_mode") == "ai_only":
             advice = [x for x in self.ai_extra.values() if os.path.lexists(x[1])]  # tylko AI: to, co wskazal model
@@ -1358,7 +1356,6 @@ class CleanupPage(QWidget):
         self._guard = True
         self.adv_tree.clear()
         bold = self._bold()
-        grey = QBrush(self.palette().placeholderText())
         for cat in self.adv_cats:
             top = self._top_item(self.adv_tree, cat, bold)
             biggest = max((e.size for e in cat.entries), default=0)

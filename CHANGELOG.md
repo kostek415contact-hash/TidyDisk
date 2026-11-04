@@ -1,5 +1,9 @@
 # Historia zmian
 
+## 2.19.3 - pyflakes: czysto
+
+- `osal.py`: brakujący import `Path` (nazwa w adnotacji); `widgets.py`: reeksport z `progress` jawnie użyty (pyflakes nie czyta `noqa`), usunięty nieużywany `os` i zmienna `pure`; usunięte nieużywane zmienne w `core.py`, `ai.py`, `gui.py`.
+
 ## 2.19.2 - .exe uruchamia się; porządki w importach
 
 - `.exe`: osobny punkt wejścia `packaging/windows/entry.py` (skrypt uruchamiany przez PyInstaller nie ma pakietu nadrzędnego, stąd błąd „relative import”); bez argumentów pokazuje status dysku zamiast próbować otworzyć okno Qt. Windows-smoke w CI: skan i budowa przeszły, uruchomienie `.exe` było tym brakującym krokiem.
