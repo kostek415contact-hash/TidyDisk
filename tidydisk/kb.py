@@ -401,12 +401,15 @@ class KnowledgeBase:
 
 
 _default_kb: KnowledgeBase | None = None
+_default_home = ""
 
 
 def default_kb() -> KnowledgeBase:
-    global _default_kb
-    if _default_kb is None or _default_kb.home != (str(Path.home()).rstrip("/") or "/"):
-        _default_kb = KnowledgeBase(Path.home())
+    global _default_kb, _default_home
+    home = str(Path.home())
+    if _default_kb is None or _default_home != home:
+        _default_kb = KnowledgeBase(Path.home(), system="windows" if os.name == "nt" else "linux")
+        _default_home = home
     return _default_kb
 
 

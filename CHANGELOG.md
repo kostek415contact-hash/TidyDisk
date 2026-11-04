@@ -1,5 +1,16 @@
 # Historia zmian
 
+## 2.21.0 - Windows: czyszczenie włączone
+
+- Windows: usuwanie działa (wcześniej zablokowane). Osobny mechanizm `winfs.py`: odmawia przy ścieżkach przez junction/dowiązanie (`realpath` musi się zgadzać), nigdy nie rusza korzenia dysku ani katalogu domowego, tylko pozycje ocenione jako Bezpieczne/Do przejrzenia (lub wybrane ręcznie poza „Nie ruszaj”); wewnątrz czyszczonych katalogów dowiązania usuwa jako same dowiązania; pliki używane przez programy pomija z komunikatem; wybrane ręcznie idą do Kosza (PowerShell, ścieżka przez zmienną środowiskową).
+- Nie było jeszcze uruchamiane na prawdziwym Windows: zacznij od symulacji („Pokaż, co zostanie usunięte”).
+- Nadal tylko Linux: analiza plików (duplikaty, duże pliki), AI i harmonogram.
+
+## 2.20.3 - Windows: poprawne oceny plików
+
+- Windows: baza wiedzy działała w trybie linuksowym, więc pliki w `~\\Downloads` i innych miejscach profilu były oceniane jako „Nie ruszaj / Plik poza katalogiem domowym”. Teraz są „Twoje pliki” (archiwa i tymczasowe - „Do przejrzenia”).
+- Windows: ukryte przyciski AI i „Analizuj ponownie” (nie działają w tej wersji).
+
 ## 2.20.2 - Okno na Windows (tylko odczyt)
 
 - CI buduje `tidydisk-gui.exe` (PyQt6, bez konsoli): dwuklik otwiera okno. Na Windows okno robi tylko skan i raport, usuwanie nadal zablokowane. Okno nie było jeszcze uruchamiane na prawdziwym Windows.

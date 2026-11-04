@@ -2339,5 +2339,48 @@ from tidydisk import viewmodel as vm_w
 check(vm_w.date_text(2 ** 62) == "—", "viewmodel: absurdalny mtime nie wywala")
 shutil.rmtree(HOME / "Documents" / "Faktury", ignore_errors=True)
 
+_kw = kb.KnowledgeBase("C:\\Users\\Jan", [], system="windows")
+check(_kw.classify_file("C:\\Users\\Jan\\Downloads\\Setup.exe").rating == kb.MINE, "kb Windows: plik w Downloads to Twoje pliki, nie 'poza domem'")
+check(_kw.classify_file("D:\\x\\y").rating == kb.KEEP, "kb Windows: inny dysk poza domem")
+check(core.KB.fold == (os.name == "nt"), "core.KB ma tryb zgodny z systemem")
+
+# --- Windows: usuwanie (mechanizm sprawdzany na Linuksie: tam 'dowiazanie' = symlink) ---
+from tidydisk import winfs as wf_, core as core_d, settings as set_d
+_wd = Path(tempfile.mkdtemp(prefix="fc-win-"))
+(_wd / "cache" / "sub").mkdir(parents=True)
+(_wd / "cache" / "sub" / "a.tmp").write_text("x")
+(_wd / "cache" / "ro.tmp").write_text("x"); os.chmod(_wd / "cache" / "ro.tmp", 0o444)
+(_wd / "outside").mkdir(); (_wd / "outside" / "keep.txt").write_text("zostaje")
+os.symlink(_wd / "outside", _wd / "cache" / "link")
+_er: list = []
+wf_.remove_tree(str(_wd / "cache"), _er)
+check(not (_wd / "cache").exists() and (_wd / "outside" / "keep.txt").exists() and not _er, "winfs: dowiazanie usuniete jako dowiazanie, cel poza katalogiem nietkniety")
+_er = []; wf_.remove_item(str(_wd / "nie_ma"), _er)
+check(not _er, "winfs: brak pliku nie jest bledem")
+check(wf_.bad_path("wzgledna\\x") and wf_.bad_path("C:\\x\\..") and not wf_.bad_path("C:\\x\\y"), "winfs: bad_path")
+check(wf_.is_drive_root("C:\\") and wf_.is_drive_root("d:") and not wf_.is_drive_root("C:\\Users"), "winfs: korzen dysku")
+_calls: list = []
+class _R:
+    returncode = 0
+wf_.recycle("C:\\Users\\Me\\a b'c.txt", [], run=lambda cmd, **kw: (_calls.append((cmd, kw["env"].get("TIDYDISK_PATH"))), _R())[1])
+check(_calls and _calls[0][1] == "C:\\Users\\Me\\a b'c.txt" and "a b'c" not in " ".join(_calls[0][0]), "winfs: sciezka do Kosza idzie przez zmienna srodowiskowa, nie przez polecenie")
+_saved = (core_d.KB, wf_.same_real, set_d.RUNTIME.get("protected"))
+core_d.KB = kb_.KnowledgeBase("C:\\Users\\Me", [], system="windows")
+wf_.same_real = lambda _p: True
+set_d.RUNTIME["protected"] = []
+try:
+    _chk = core_d.win_check
+    check(_chk("C:\\Users\\Me\\AppData\\Local\\Temp\\x.tmp")[0], "win_check: Temp wolno")
+    check(not _chk("C:\\Users\\Me")[0] and not _chk("C:\\")[0] and not _chk("D:\\gry\\x")[0], "win_check: dom, dysk i obce miejsca - nie")
+    check(not _chk("C:\\Windows\\Temp\\a")[0] and not _chk("C:\\Users\\Me\\Documents\\a.docx", user=True)[0], "win_check: system i Dokumenty - nie")
+    check(not _chk("C:\\Users\\Me\\Downloads\\a.zip")[0] and _chk("C:\\Users\\Me\\Downloads\\a.zip", user=True)[0], "win_check: Pobrane tylko jako wybor uzytkownika")
+    check(not _chk("C:\\Users\\Me\\AppData\\Local\\Google\\Chrome\\User Data\\Default\\Login Data")[0], "win_check: hasla przegladarki - nie")
+    wf_.same_real = lambda _p: False
+    check("junction" in _chk("C:\\Users\\Me\\AppData\\Local\\Temp\\x.tmp")[1], "win_check: sciezka przez junction jest odrzucana")
+finally:
+    core_d.KB, wf_.same_real = _saved[0], _saved[1]
+    set_d.RUNTIME["protected"] = _saved[2]
+shutil.rmtree(_wd, ignore_errors=True)
+
 print("WSZYSTKO OK" if not fails else f"BLEDY: {len(fails)}")
 sys.exit(1 if fails else 0)

@@ -1,6 +1,7 @@
 """Logika TidyDisk: skanowanie, usuwanie, operacje roota. Bez zalezności od Qt."""
 from __future__ import annotations
 
+import ntpath
 import os
 import re
 import shlex
@@ -11,7 +12,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from . import disks as disks_mod
-from . import kb, osal
+from . import kb, kb_windows, osal, winfs
 from . import rules, settings
 
 HOME = Path.home()
@@ -282,7 +283,8 @@ def _allowed_parent(parent_real: str) -> bool:
 
 
 def rm_tree(path: str, errors: list) -> None:
-    if _win_block(path, errors):
+    if osal.is_windows():
+        _win_remove(path, errors, False)
         return
     try:
         fd = os.open(path, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
@@ -304,6 +306,8 @@ def is_user_target(path: str) -> tuple:
 
     Tylko w katalogu domowym i na dyskach danych, nigdy cale katalogi glowne i nigdy
     miejsca ocenione jako 'nie ruszaj' (ustawienia, klucze, system)."""
+    if osal.is_windows():
+        return win_check(path, user=True)
     if bad_path(path):
         return False, "nieprawidłowa ścieżka"
     path = os.path.normpath(path)  # bez koncowego '/', '//' i './': inaczej "~/.ssh/" omijalo ochrone "~/.ssh"
@@ -324,7 +328,12 @@ def is_user_target(path: str) -> tuple:
 
 def trash_path(path: str, errors: list) -> None:
     """Przenosi do kosza (mozna przywrocic) przez `gio trash`."""
-    if _win_block(path, errors):
+    if osal.is_windows():
+        ok, why = win_check(path, user=True)
+        if not ok:
+            errors.append(f"pominięto ({why}): {path}")
+        else:
+            winfs.recycle(ntpath.normpath(path), errors)
         return
     path = os.path.normpath(path)
     if not shutil.which("gio"):
@@ -434,16 +443,45 @@ def holds_keep(path: str, depth: int = 3, budget: int = 4000) -> str:
     return ""
 
 
-def _win_block(path: str, errors: list) -> bool:
-    """Na Windows usuwanie jest wylaczone na poziomie KAZDEGO prymitywu (nie tylko run_clean)."""
-    if osal.is_windows():
-        errors.append(f"{path}: usuwanie na Windows jest wyłączone w tej wersji")
-        return True
-    return False
+def win_check(path: str, user: bool = False) -> tuple:
+    """Kontrola celu usuwania na Windows: (ok, powod_odmowy). Dziala na napisach i realpath, bez dir_fd (ktorego Windows nie ma)."""
+    if winfs.bad_path(path):
+        return False, "nieprawidłowa ścieżka"
+    path = ntpath.normpath(path)
+    if is_protected(path):
+        return False, "chronione w Ustawieniach"
+    if winfs.is_drive_root(path) or kb_windows.norm(path) == KB.home:
+        return False, "to cały dysk lub katalog domowy"
+    if not winfs.same_real(path):
+        return False, "ścieżka prowadzi przez dowiązanie lub junction"
+    v = KB.classify(path)
+    if v.rating == kb.KEEP:
+        return False, f"chronione ({v.title})"
+    n = kb_windows.norm(path)
+    if not (n.startswith(KB.home + "/") or any(n.startswith(m + "/") for m in KB.data_mounts)):
+        return False, "poza katalogiem domowym i dyskami danych"
+    if not user and v.rating not in (kb.SAFE, kb.REVIEW):
+        return False, "nie jest oznaczone jako zbędne"
+    return True, ""
+
+
+def _win_remove(path: str, errors: list, user: bool) -> None:
+    ok, why = win_check(path, user)
+    if not ok:
+        errors.append(f"pominięto ({why}): {path}")
+        return
+    path = ntpath.normpath(path)
+    if user and os.path.isdir(path):
+        kept = holds_keep(path)
+        if kept:
+            errors.append(f"pominięto (w środku jest {kept} - nie ruszam): {path}")
+            return
+    winfs.remove_item(path, errors)
 
 
 def remove_path(path: str, errors: list, user: bool = False) -> None:
-    if _win_block(path, errors):
+    if osal.is_windows():
+        _win_remove(path, errors, user)
         return
     if bad_path(path):
         errors.append(f"pominięto (nieprawidłowa ścieżka): {path}")
@@ -506,8 +544,6 @@ def remove_path(path: str, errors: list, user: bool = False) -> None:
 
 
 def remove_contents(directory: str, errors: list) -> None:
-    if _win_block(directory, errors):
-        return
     try:
         with os.scandir(directory) as it:
             children = [c.path for c in it]
@@ -755,7 +791,7 @@ def mount_of(path: str, mounts=None) -> str:
     return best
 
 
-KB = kb.KnowledgeBase(HOME, data_mounts())
+KB = kb.KnowledgeBase(HOME, data_mounts(), system=osal.SYSTEM)
 
 
 def _rate(e: Entry, path: str) -> Entry:
@@ -1147,11 +1183,6 @@ def build_root_script(entries: list) -> str:
 
 def run_clean(entries: list, dry: bool, log=lambda _m: None, journal: list | None = None) -> CleanResult:
     res = CleanResult()
-    if osal.is_windows() and not dry:  # Windows: tylko skan i raport, dopoki nie przetestowano na prawdziwym systemie
-        from . import scan_windows
-        log(scan_windows.refuse_message())
-        res.problems += 1
-        return res
     mode = "  [symulacja]" if dry else ""
     for e in [x for x in entries if not x.root]:
         if not e.deletable:

@@ -2,7 +2,7 @@
 
 > Dawniej *Fedora Cleaner*: polecenie `tidydisk` zastąpiło dawne `fedora-cleaner`. Po aktualizacji ustawienia i dane z `~/.config/fedora-cleaner` i `~/.local/share/fedora-cleaner` przenoszą się same (tylko gdy nowe katalogi jeszcze nie istnieją; `TIDYDISK_NO_MIGRATE=1` to wyłącza), a timery systemd `fedora-cleaner-*` zamieniają się na `tidydisk-*`. Zmienne `FC_AI_URL`, `FC_AI_KEY`, `FC_AI_MODEL` i `FC_CONFIG` (FC = dawne Fedora Cleaner) działają bez zmian.
 
-Graficzny program do sprzątania dysku na Linuksie (Fedora, Debian/Ubuntu/Mint) i - na razie tylko skan i raport, bez usuwania - na Windows. Przeszukuje wszystkie pliki,
+Graficzny program do sprzątania dysku na Linuksie (Fedora, Debian/Ubuntu/Mint) i na Windows (tam: skan znanych miejsc i czyszczenie, bez analizy plików i AI). Przeszukuje wszystkie pliki,
 wyjaśnia, czym są, pokazuje podział na dyski i partycje, a przed usunięciem **mówi, co usunie,
 co zostawi i dlaczego**.
 
@@ -235,7 +235,7 @@ Historia zmian: `CHANGELOG.md`.
 ## Inne systemy i formaty pakietów (w budowie)
 
 - **.rpm** (Fedora): `packaging/tidydisk.spec`. **.deb** (Debian, Ubuntu, Mint): `bash packaging/build-deb.sh` - instaluje program i skaner; czyszczenie cache APT działa, a funkcje oparte na `dnf`/`rpm` (jądra, niepotrzebne pakiety) tylko na Fedorze (na Debianie nie są proponowane). **.sh**: `install.sh`.
-- **Windows (.exe)**: skan i raport z rozpoznawaniem znanych miejsc (Temp, cache przeglądarek, shadery, narzędzia programistyczne) - **tylko odczyt, niczego nie usuwa** (usuwanie zablokowane w kodzie do czasu testów na prawdziwym Windows 11). Budowa: `packaging/windows/build-exe.ps1` (PyInstaller; CI zapisuje `tidydisk.exe` jako artefakt). Użycie: `tidydisk.exe scan` / `status` / `report`. Okno (PyQt6) na Windows jeszcze nie jest sprawdzone.
+- **Windows**: `tidydisk.exe` (konsola: `status`, `scan`, `report`) i `tidydisk-gui.exe` (okno, PyQt6). Skan rozpoznaje znane miejsca (Temp, cache przeglądarek, shadery, narzędzia programistyczne). **Czyszczenie jest włączone**, ale nie było jeszcze sprawdzone na prawdziwym Windows: najpierw użyj „Pokaż, co zostanie usunięte” (symulacja). Usuwanie odmawia przy junctionach i dowiązaniach, nigdy nie rusza katalogu domowego, korzenia dysku ani miejsc „Nie ruszaj”; wybrane ręcznie pliki idą do Kosza (PowerShell). Na Windows nie ma jeszcze: analizy plików (duplikaty, duże pliki), AI i harmonogramu. Budowa: `packaging/windows/build-exe.ps1` (PyInstaller; CI zapisuje `tidydisk.exe` i `tidydisk-gui.exe` jako artefakty).
 
 ### Sprawdzenie wersji Windows bez Windowsa
 

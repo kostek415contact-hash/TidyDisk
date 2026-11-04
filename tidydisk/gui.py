@@ -919,6 +919,9 @@ class CleanupPage(QWidget):
                                "rozmiar i nazwy plików obok - nie zawartość. To tylko podpowiedź.")
         self.btn_ai.clicked.connect(lambda: self._cur_entry is not None and self.win.ask_ai(self._cur_entry))
         self.btn_ai.setEnabled(False)
+        if osal.is_windows():  # AI i analiza plikow: tylko Linux (na Windows skan i raport)
+            self.btn_ai.hide()
+            self.btn_ai_review.hide()
         self.panel = DetailPanel(self)
         body = QHBoxLayout()  # lista po lewej, szczegoly w panelu po prawej
         body.setSpacing(12)
@@ -1119,7 +1122,7 @@ class CleanupPage(QWidget):
         else:
             self.pages.setCurrentIndex(idx)
         self.adv_status.setVisible(idx == self.TAB_ADVICE)
-        self.btn_analyze.setVisible(idx == self.TAB_ADVICE)
+        self.btn_analyze.setVisible(idx == self.TAB_ADVICE and not osal.is_windows())
 
     def _refresh_tab_titles(self) -> None:
         n_adv = sum(len(c.entries) for c in self.adv_cats)
@@ -2867,10 +2870,6 @@ class MainWindow(QMainWindow):
         return None if session.aborted else session.approved
 
     def start_clean(self) -> None:
-        if osal.is_windows():  # w tej wersji Windows tylko skan i raport
-            from . import scan_windows
-            QMessageBox.information(self, "TidyDisk", scan_windows.refuse_message())
-            return
         cp = self.clean_page
         sel = cp.selected_entries()
         if not sel or self.busy:
