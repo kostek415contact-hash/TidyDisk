@@ -1,5 +1,9 @@
 # Historia zmian
 
+## 2.20.2 - Okno na Windows (tylko odczyt)
+
+- CI buduje `tidydisk-gui.exe` (PyQt6, bez konsoli): dwuklik otwiera okno. Na Windows okno robi tylko skan i raport, usuwanie nadal zablokowane. Okno nie było jeszcze uruchamiane na prawdziwym Windows.
+
 ## 2.20.1 - Pasek zajętości dysku z btrfs na kilku partycjach
 
 - „Dyski i partycje”: system plików rozłożony na kilku partycjach (btrfs ×3) był pomijany w sumie dysku, więc dysk 931 GB pokazywał „zajęte 133 GB z 281 GB”. Teraz liczy się raz, proporcjonalnie do udziału partycji na tym dysku.
