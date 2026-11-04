@@ -1,5 +1,10 @@
 # Historia zmian
 
+## 2.19.2 - .exe uruchamia się; porządki w importach
+
+- `.exe`: osobny punkt wejścia `packaging/windows/entry.py` (skrypt uruchamiany przez PyInstaller nie ma pakietu nadrzędnego, stąd błąd „relative import”); bez argumentów pokazuje status dysku zamiast próbować otworzyć okno Qt. Windows-smoke w CI: skan i budowa przeszły, uruchomienie `.exe` było tym brakującym krokiem.
+- Usunięte nieużywane importy (`pyflakes`): `Path` w changes/progress, `time` w widgets, `QCheckBox`/`QInputDialog` w gui, `__version__` w `__main__`.
+
 ## 2.19.1 - Poprawki CI
 
 - Job `windows-smoke`: import modułów bez `-I` (z `-I` Python nie widzi katalogu repozytorium).

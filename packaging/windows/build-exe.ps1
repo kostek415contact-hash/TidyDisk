@@ -3,5 +3,5 @@
 $ErrorActionPreference = "Stop"
 python -m PyInstaller --noconfirm --onefile --name tidydisk `
   --exclude-module PyQt6 --exclude-module tkinter `
-  --paths . tidydisk\__main__.py
+  --paths . packaging\windows\entry.py
 Write-Host "Gotowe: dist\tidydisk.exe  (uruchom: dist\tidydisk.exe scan)"

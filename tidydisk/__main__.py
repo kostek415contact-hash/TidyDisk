@@ -1,7 +1,5 @@
 import sys
 
-from . import __version__
-
 
 def run() -> int:
     cmds = ("status", "scan", "analyze", "clean", "report", "notify", "schedule", "ai", "background", "diag", "changes", "config", "rules",
@@ -15,13 +13,17 @@ def run() -> int:
     return main()
 
 
-if __name__ == "__main__":
-    _code = run()
+def main() -> None:
+    code = run()
     if len(sys.argv) > 1 and sys.argv[1] in ("ai", "background"):
         # wyniki sa zapisane; porzucone zapytania do AI (watki) nie moga wstrzymac wyjscia az do konca limitu czasu
         import os
 
         sys.stdout.flush()
         sys.stderr.flush()
-        os._exit(int(_code or 0))
-    sys.exit(_code)
+        os._exit(int(code or 0))
+    sys.exit(code)
+
+
+if __name__ == "__main__":
+    main()
