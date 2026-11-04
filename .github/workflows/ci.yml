@@ -10,7 +10,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        fedora: ["43", "44", "rawhide"]
+        fedora: ["44", "45", "rawhide"]
     continue-on-error: ${{ matrix.fedora == 'rawhide' }}  # rawhide informuje, ale nie blokuje
     container: fedora:${{ matrix.fedora }}
     env:
@@ -40,6 +40,16 @@ jobs:
           mkdir -p ~/rpmbuild/SOURCES
           tar czf ~/rpmbuild/SOURCES/tidydisk-$(python3 -c 'import tidydisk as f; print(f.__version__)').tar.gz --transform "s,^\.,tidydisk-$(python3 -c 'import tidydisk as f; print(f.__version__)')," --exclude=.git .
           rpmbuild -ba packaging/tidydisk.spec
+      - name: Zbierz gotowe RPM
+        run: |
+          mkdir -p dist-rpm
+          cp ~/rpmbuild/RPMS/noarch/*.rpm dist-rpm/
+          cp ~/rpmbuild/SRPMS/*.src.rpm dist-rpm/
+          ls -la dist-rpm
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rpm-fedora-${{ matrix.fedora }}
+          path: dist-rpm/*.rpm
   deb:
     runs-on: ubuntu-latest
     steps:
