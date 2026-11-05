@@ -14,7 +14,7 @@ import re
 import time
 from pathlib import Path
 
-from . import kb, osal
+from . import fsutil, kb, osal
 
 MAX_SAMPLES = 5000
 MIN_SAMPLES = 8  # ponizej tylu przykladow model nic nie zmienia
@@ -70,8 +70,16 @@ class Learner:
     def _load(self) -> None:
         try:
             data = json.loads((self.dir / "learn.json").read_text(encoding="utf-8"))
-            self.samples = [(s[0], int(s[1]), float(s[2])) for s in data.get("samples", [])][-MAX_SAMPLES:]
             self.ignored = [str(p) for p in data.get("ignored", [])]
+            good = []
+            for s in data.get("samples", []):  # jeden zly sampel nie kasuje reszty ani listy "nie proponuj"
+                try:
+                    f, y, w = s[0], int(s[1]), float(s[2])
+                except (ValueError, TypeError, IndexError, KeyError):
+                    continue
+                if isinstance(f, dict) and math.isfinite(w) and all(isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v) for v in f.values()):
+                    good.append((f, y, w))
+            self.samples = good[-MAX_SAMPLES:]
         except (OSError, ValueError, TypeError, IndexError, AttributeError):
             self.samples, self.ignored = [], []
         self.train()
@@ -79,13 +87,10 @@ class Learner:
     def save(self) -> bool:
         try:
             self.dir.mkdir(parents=True, exist_ok=True)
-            tmp = self.dir / "learn.json.tmp"
-            tmp.write_text(json.dumps({"samples": self.samples[-MAX_SAMPLES:], "ignored": self.ignored,
-                                       "saved": int(time.time())}, ensure_ascii=False), encoding="utf-8")
-            os.chmod(tmp, 0o600)  # zawiera sciezki
-            os.replace(tmp, self.dir / "learn.json")
+            fsutil.atomic_write(self.dir / "learn.json", json.dumps(
+                {"samples": self.samples[-MAX_SAMPLES:], "ignored": self.ignored, "saved": int(time.time())}, ensure_ascii=True))
             return True
-        except OSError:
+        except (OSError, ValueError):
             return False
 
     # -- model
@@ -147,7 +152,8 @@ class Learner:
             self.save()
 
     def is_ignored(self, path: str) -> bool:
-        return any(path == p or path.startswith(p.rstrip("/") + "/") for p in self.ignored)
+        return any(path == p or path.startswith(p.rstrip("/\\") + "/") or (osal.is_windows() and path.startswith(p.rstrip("/\\") + "\\"))
+                   for p in self.ignored)
 
     # -- podglad nauki
     SKIP = ("bias", "score", "size")

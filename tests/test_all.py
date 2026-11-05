@@ -391,8 +391,19 @@ check(any(e.paths[0].endswith("stary.iso") for e in adv_entries), "okno: Polecan
 si = next(e for e in adv_entries if e.paths[0].endswith("stary.iso"))
 check(si.score >= 75 and si.checked and si.deletable, "okno: pewna propozycja zaznaczona od razu")
 check(cp.tabs.tabText(0).startswith("Polecane (") and si in cp.selected_entries(), "okno: licznik w zakladce i wybor trafia do usuniecia")
+for _t, _ch in cp._each_child():
+    _t.setHidden(False)
+    _ch.setHidden(False)  # fakeqt: pole filtra zwraca atrape, wiec wiersze wygladaja na ukryte
+_vis = [ch for _t, ch in cp._each_child() if ch.data(0, gui.ENTRY_ROLE) is si]
+_hid = next(ch for _t, ch in cp._each_child() if ch.data(0, gui.ENTRY_ROLE) is not si and ch.data(0, gui.ENTRY_ROLE).checked) if any(ch.data(0, gui.ENTRY_ROLE) is not si and ch.data(0, gui.ENTRY_ROLE).checked for _t, ch in cp._each_child()) else None
+if _hid is not None:
+    _hid.setHidden(True)
 cp.uncheck_all()
-check(not si.checked and not any(e.checked for e in adv_entries), "okno: odznacz wszystko dziala tez w Polecanych")
+check(not si.checked, "okno: odznacz wszystko dziala tez w Polecanych")
+if _hid is not None:
+    check(_hid.data(0, gui.ENTRY_ROLE).checked, "okno: odznacz wszystko nie rusza wierszy ukrytych filtrem")
+    _hid.setHidden(False)
+    cp.select_recommended()
 cp.select_recommended()
 check(si.checked, "okno: zaznacz polecane przywraca pewne propozycje")
 check(si.paths[0] in {e.paths[0] for e in cp.selected_entries() if e.paths}, "okno: wspolny obiekt z lista plikow")
@@ -1115,7 +1126,7 @@ victim = TMP / "victim.txt"; victim.write_text("nietkniete")
 tmpf = st_.path() + ".tmp"
 os.symlink(str(victim), tmpf)
 st_.update({"min_score": 56})
-check(victim.read_text() == "nietkniete" and not os.path.islink(tmpf) and _stat.S_IMODE(os.stat(st_.path()).st_mode) == 0o600, "ustawienia: zapis nie idzie za symlinkiem .tmp, plik 0600")
+check(victim.read_text() == "nietkniete" and _stat.S_IMODE(os.stat(st_.path()).st_mode) == 0o600, "ustawienia: zapis nie idzie za symlinkiem .tmp, plik 0600")
 os.chmod(st_.path(), 0o644); st_.update({"min_score": 57})
 check(_stat.S_IMODE(os.stat(st_.path()).st_mode) == 0o600, "ustawienia: zapis przywraca tryb 0600")
 st_.update({"ai_url": "http://127.0.0.1:7777", "ai_key": "k-1"})
@@ -1538,7 +1549,7 @@ ai.triage_batch = lambda *a_, **k_: {}
 _nd = {"/h/f": [2 * 10**9, 1, "review", "t", 1], "/h/f/in": [10**9, 1, "review", "t", 2], "/h/g": [10**9, 1, "review", "t", 1]}
 _st = ai.cascade("m", [], _nd, [], "u", "/h", cfg=settings.sanitize({"ai_stage_verify": False}))
 ai.triage_batch, ai.classify_folders = _o3
-check(_st.get("bez_odpowiedzi") == 1, f"statystyki: 'bez odpowiedzi' nie liczy folderow pominietych w 'whole' ({_st.get('bez_odpowiedzi')})")
+check(_st.get("bez_odpowiedzi") == 2, f"statystyki: 'bez odpowiedzi' nie liczy folderow pominietych w 'whole', liczy paczke plikow bez odpowiedzi ({_st.get('bez_odpowiedzi')})")
 # --- poprawki z audytu 2.4.1
 _MB = 1024 * 1024
 def _ov(names):
@@ -2503,5 +2514,158 @@ _an = report.Anon(True, False)
 if _an is not None:
     check("umowa" not in _an.shown("/mnt/dane/Tajne/umowa.pdf", kb.MINE) and "umowa" not in _an.shown(str(core.HOME) + "/umowa.pdf", kb.MINE), "report: nazwy MINE maskowane tez poza ~ i bezposrednio w ~")
 check("-prune" not in open("tidydisk/core.py", encoding="utf-8").read().split("Stare, zarchiwizowane logi")[1][:400], "core: find z -delete bez -prune")
+_kbt = kb.KnowledgeBase("/home/u", [], system="linux")
+check(_kbt.classify("/home/u/.vscode/extensions/a/node_modules").rating == kb.KEEP, "kb: node_modules w strefie Nie ruszaj zostaje chronione")
+check(_kbt.classify("/home/u/.cache/rclone").rating == kb.REVIEW, "kb: cache rclone do przejrzenia")
+check(_kbt.classify("/home/u/.cache/pypoetry/virtualenvs/x").rating == kb.REVIEW, "kb: cache Poetry z virtualenvs do przejrzenia")
+_rf = _tf.mkdtemp()
+_f = os.path.join(_rf, "a.bin")
+open(_f, "wb").write(b"x" * 4123)
+_ent = core.Entry("a.bin", osal.alloc_size(os.lstat(_f)), "path", paths=[_f], rule="analiza")
+_ent.user_pick = True; _ent.trash = False
+_err = []
+_old = core.is_user_target
+core.is_user_target = lambda p: (True, "")
+try:
+    core.run_clean([_ent], False, lambda m: None, [])
+finally:
+    core.is_user_target = _old
+check(not os.path.exists(_f), "run_clean: plik z rozmiarem zajetym (nie logicznym) nie jest odrzucany jako zmieniony")
+import tidydisk.history as _hist
+_hist_ok = True
+try:
+    _hist.restore_from_trash("/nie/ma/takiego/pliku")
+except Exception:
+    _hist_ok = False
+check(_hist_ok, "history: restore_from_trash bez trash_dir nie rzuca wyjatku")
+_tr = ai._salvage('{"oceny":[{"id":0,"werdykt":"usunac"},{"id":1,"werd')
+check([o["id"] for o in _tr] == [0], "ai: urwana odpowiedz zachowuje kompletne wpisy")
+check(hasattr(gui.CleanupPage, "_drop_gone_advice") and not hasattr(gui.MainWindow, "_drop_gone_advice"), "gui: _drop_gone_advice jest w CleanupPage (ma file_entries/adv_items)")
+import ast as _ast
+_src = open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "tidydisk", "gui.py"), encoding="utf-8").read()
+_bad = []
+for _cls in [n for n in _ast.walk(_ast.parse(_src)) if isinstance(n, _ast.ClassDef) and n.name == "MainWindow"]:
+    for _f in [n for n in _cls.body if isinstance(n, _ast.FunctionDef)]:
+        for _n in _ast.walk(_f):
+            if isinstance(_n, _ast.Attribute) and isinstance(_n.value, _ast.Name) and _n.value.id == "self" and _n.attr in ("file_entries", "adv_items", "adv_cats"):
+                _bad.append(_f.name + "." + _n.attr)
+check(not _bad, "gui: MainWindow nie siega po atrybuty CleanupPage (file_entries/adv_items/adv_cats): " + ", ".join(_bad))
+import tempfile as _tf2, tidydisk.history as _h2
+_hd = _tf2.mkdtemp()
+_ok = _h2.record([{"label": "bad\udcff", "paths": ["/tmp/bad\udcff name.iso"], "size": 1, "how": "delete"}], 1, 0, directory=_hd) if "directory" in _h2.record.__code__.co_varnames else True
+check(_ok is not False, "history: nazwa pliku w zlym kodowaniu nie wywala zapisu")
+
+# --- audyt 2.23.8 -> 2.23.9
+_nest = HOME / "Downloads" / "x9" / ".ssh"
+_nest.mkdir(parents=True, exist_ok=True)
+(HOME / "Downloads" / "y9" / ".GIT").mkdir(parents=True, exist_ok=True)
+check(not core.is_user_target(str(_nest))[0] and not core.is_user_target(str(_nest / "id"))[0], "core: zagniezdzony .ssh poza ~ jest chroniony")
+check(not core.is_user_target(str(HOME / "Downloads" / "y9" / ".GIT"))[0], "core: .GIT (inna wielkosc liter) jest chroniony")
+check(cli._expand_excludes(["$HOME/zz"])[0] == str(Path(os.path.expandvars("$HOME")) / "zz"), "cli: --exclude rozwija $HOME")
+_zf = os.path.join(_tf.mkdtemp(), "p.part")
+open(_zf, "wb").close()
+_ze = core.Entry("p.part", 0, "path", paths=[_zf], rule="analiza")
+_ze.user_pick = True; _ze.trash = False
+open(_zf, "wb").write(b"x" * 100000)
+_old = core.is_user_target
+core.is_user_target = lambda p: (True, "")
+try:
+    core.run_clean([_ze], False, lambda m: None, [])
+finally:
+    core.is_user_target = _old
+check(os.path.exists(_zf), "run_clean: plik 0 B, ktory urosl od skanu, nie jest kasowany")
+check(core.running_warn("chromium", {"chromium-browse"}) != "", "core: skrocona nazwa procesu chromium-browse wykryta")
+_an9 = report.Anon(True, False)
+check("umowa" not in _an9.text("identyczna kopia pliku «umowa.pdf» z /mnt/d") and _an9.path("/home/janusz/x") == "~/x", "report: opis bez nazw w «…» i granica katalogu domowego")
+check(ai._as_idx("3") == 3 and ai._as_idx(2.0) == 2, "ai: _as_idx przyjmuje liczby calkowite")
+for _bad in (True, 1.9, "1.9", None, "x"):
+    try:
+        ai._as_idx(_bad)
+        check(False, f"ai: _as_idx odrzuca {_bad!r}")
+    except ValueError:
+        pass
+check("klucz" not in ai.friendly_error("HTTP 500: Internal error 401 tokens"), "ai: friendly_error nie myli 401 w tekscie z HTTP")
+check("pami" not in ai.friendly_error("HTTP 500: CUDA error: invalid device function"), "ai: blad CUDA to nie brak pamieci")
+_cfgp = TMP / "cfg_rel.json"
+_cfgp.write_text(json.dumps({"protected_paths": ["Documents"]}), encoding="utf-8")
+os.environ["FC_CONFIG"] = str(_cfgp)
+try:
+    check(not settings.trustworthy(), "settings: wzgledna sciezka chroniona = ustawienia niewiarygodne")
+finally:
+    del os.environ["FC_CONFIG"]
+_ls = learn.Learner(TMP / "learn_sur")
+_ls.ignored.append("/h/za\udcbf\udce6")
+check(_ls.save() is True, "learn: nazwa w zlym kodowaniu nie wywala zapisu")
+
+# --- audyt 2.23.9 -> 2.23.10
+import threading as _thr
+from tidydisk import background, fsutil
+_sp = TMP / "par_settings.json"
+os.environ["FC_CONFIG"] = str(_sp)
+_bad9 = []
+def _w9():
+    for _ in range(40):
+        if not settings.save({"min_score": 50}):
+            _bad9.append("save")
+_ts9 = [_thr.Thread(target=_w9) for _ in range(6)]
+[t.start() for t in _ts9]
+[t.join() for t in _ts9]
+check(not _bad9 and settings.load(env=False)["min_score"] == 50, "settings: rownolegle zapisy nie psuja pliku")
+del os.environ["FC_CONFIG"]
+_ap = TMP / "par_atomic.txt"
+_er9 = []
+def _w10():
+    for i in range(60):
+        try:
+            fsutil.atomic_write(_ap, "x" * 5000 + str(i))
+        except OSError as ex:
+            _er9.append(ex)
+_ts10 = [_thr.Thread(target=_w10) for _ in range(6)]
+[t.start() for t in _ts10]
+[t.join() for t in _ts10]
+check(not _er9 and _ap.read_text().startswith("x" * 5000), "fsutil: rownolegle atomic_write bez bledow")
+check(report.mask_home("'/home/jan' (/home/jan) /home/jan: x /home/janusz/y", "/home/jan").count("/home/jan") == 1 and "~'" in report.mask_home("'/home/jan'", "/home/jan"), "report: katalog domowy maskowany tez przy apostrofie i nawiasie")
+check(report.mask_home("c:\\users\\jan\\x C:/Users/jan/y", "C:\\Users\\jan") == "~\\x ~/y", "report: Windows - wielkosc liter i oba separatory")
+_a9 = report.Anon(True, False)
+_a9.home = "/home/jan"
+check(_a9.path("'/home/obcy'") == "'~'" and _a9.path("/mnt/home/jan/x") == "/mnt/home/<użytkownik>/x", "report: obce konta bez zjadania znakow; /home/login w srodku sciezki maskowany")
+check(_a9.path("/home/jan/home/old/x") == "~/home/old/x" and report.mask_home("a/b", "/") == "a/b", "report: home w home nie daje ~~, HOME=/ nie wyciera tekstu")
+_bg = TMP / "exp9.json"
+background.export_rows([{"etap": "t", "sciezka": "/h/za\udcff", "rozmiar": 1, "werdykt": "x", "ryzyko": "n", "uzasadnienie": "u", "czas": 1}], str(_bg))
+check(_bg.exists(), "background: eksport JSON z nazwa w zlym kodowaniu")
+check(core.bad_path("/a/b\0c"), "core: sciezka z NUL jest odrzucana")
+_pj = TMP / "part9"
+_pj.mkdir()
+(_pj / "a.bin").write_bytes(b"x" * 2000)
+(_pj / "proj" / ".git").mkdir(parents=True)
+_pe = core.Entry("dwa", 2000, "path", paths=[str(_pj / "a.bin"), str(_pj / "proj")], rule="analiza")
+_pe.user_pick = True; _pe.trash = False
+_jr = []
+_o9 = core.is_user_target
+core.is_user_target = lambda p: _o9(p) if p.endswith("proj") else (True, "")
+try:
+    _r9 = core.run_clean([_pe], False, lambda m: None, _jr)
+finally:
+    core.is_user_target = _o9
+check(not (_pj / "a.bin").exists() and _jr and _jr[0]["paths"] == [str(_pj / "a.bin")] and _r9.problems == 1, "run_clean: czesciowy sukces trafia do historii")
+_gone = core.Entry("brak", 500, "path", paths=[str(_pj / "nie_ma.zip")], rule="analiza")
+_gone.user_pick = True; _gone.trash = False
+_jr2 = []
+_r10 = core.run_clean([_gone], False, lambda m: None, _jr2)
+check(not _jr2 and _r10.freed == 0, "run_clean: nieistniejacy plik nie zawyza zwolnionego miejsca ani historii")
+_lj = TMP / "learn_bad"
+_lj.mkdir()
+(_lj / "learn.json").write_text(json.dumps({"samples": [["x", 1, 1.0]] * 10}), encoding="utf-8")
+check(learn.Learner(_lj).samples == [], "learn: zly learn.json nie wywala konstruktora")
+(_lj / "learn.json").write_text(json.dumps({"samples": [[{"a": 1.0}, 1, 1.0], ["x", 1, 1.0]], "ignored": ["/h/k"]}), encoding="utf-8")
+_l2 = learn.Learner(_lj)
+check(len(_l2.samples) == 1 and _l2.ignored == ["/h/k"], "learn: zly sampel nie kasuje reszty ani listy ignorowanych")
+import argparse as _ap9
+try:
+    cli._nonneg("nan")
+    check(False, "cli: --min-size nan odrzucone")
+except _ap9.ArgumentTypeError:
+    check(True, "cli: --min-size nan odrzucone")
+check(core.bad_path("/h/\ud800x"), "core: pojedynczy surogat w sciezce jest odrzucany")
 print("WSZYSTKO OK" if not fails else f"BLEDY: {len(fails)}")
 sys.exit(1 if fails else 0)

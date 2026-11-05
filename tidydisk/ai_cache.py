@@ -81,6 +81,8 @@ class AICache:
             self.flush()
 
     def flush(self, force: bool = False) -> None:
+        if self.days <= 0:
+            return  # pamiec wylaczona (0 dni): nie nadpisujemy pliku pustym
         with self._lock:
             if not (self.dirty or force):
                 return
@@ -99,7 +101,7 @@ class AICache:
                 if len(merged) > MAX_ENTRIES:
                     merged = dict(sorted(merged.items(), key=lambda kv: -kv[1][3])[:MAX_ENTRIES])
                 self.data = merged
-                fsutil.atomic_write(self.path, json.dumps({"v": 1, "e": self.data}, ensure_ascii=False, separators=(",", ":")))
+                fsutil.atomic_write(self.path, json.dumps({"v": 1, "e": self.data}, ensure_ascii=True, separators=(",", ":")))
                 self._written = self._disk_sig()
                 self.dirty = False
             except OSError:

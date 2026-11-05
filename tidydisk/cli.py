@@ -11,6 +11,7 @@ Kody wyjscia: 0 ok, 1 blad (np. czesc pozycji nie zostala usunieta), 2 zle uzyci
 from __future__ import annotations
 
 import argparse
+import math
 import csv
 import json
 import os
@@ -82,7 +83,8 @@ def _age_days(e) -> float | None:
                         except OSError:
                             pass
                         seen += 1
-                    if seen > 20000:
+                    if seen > 50000:
+                        newest = time.time()  # za duzo do sprawdzenia: nie wiemy, wiec traktujemy jako swieze (nie czyscimy)
                         break
             ages.append((time.time() - newest) / 86400)
         except OSError:
@@ -90,11 +92,18 @@ def _age_days(e) -> float | None:
     return min(ages) if ages else None
 
 
+def _nonneg(s: str) -> float:
+    v = float(s)
+    if not math.isfinite(v) or v < 0:
+        raise argparse.ArgumentTypeError("oczekiwana liczba nieujemna (bez nan/inf)")
+    return v
+
+
 def _expand_excludes(items) -> list:
     """--exclude: ~ i sciezki wzgledne jako bezwzgledne, obie postacie (z dowiazaniami i rozwiazana)."""
     out: list = []
     for x in items or []:
-        a = os.path.abspath(os.path.expanduser(x))
+        a = os.path.abspath(os.path.expanduser(os.path.expandvars(x)))
         for v in (a, os.path.realpath(a)):
             if v not in out:
                 out.append(v)
@@ -185,11 +194,22 @@ def _cmd_config(a, out) -> int:
                              "albo okna Ustawienia → AI.\n")
             return EXIT_USAGE
         try:
-            new = settings.update({a.key: _coerce(a.key, a.value)})
+            want = _coerce(a.key, a.value)
+            new = settings.update({a.key: want})
         except ValueError as ex:
             sys.stderr.write(f"Zła wartość: {ex}\n")
             return EXIT_USAGE
+        if settings.load(env=False).get(a.key) != new.get(a.key):
+            sys.stderr.write("Nie udało się zapisać ustawień (sprawdź uprawnienia pliku).\n")
+            return EXIT_ERR
         out.write(f"{a.key} = {new[a.key]}\n")
+        exp = want.strip() if isinstance(want, str) else want
+        if isinstance(want, list):  # ta sama normalizacja co w settings, ale bez odrzucania sciezek wzglednych
+            exp = list(dict.fromkeys(os.path.normpath(os.path.expanduser(os.path.expandvars(x.strip()))) for x in want
+                                     if isinstance(x, str) and x.strip()))
+        if new.get(a.key) != exp:  # sanitize zmienil albo odrzucil wartosc (zakres, adres nielokalny, nieznany tryb)
+            sys.stderr.write(f"Uwaga: wartość {want!r} jest niedozwolona lub poza zakresem - zapisano {new.get(a.key)!r}.\n")
+            return EXIT_USAGE
     elif a.action == "export":
         out.write(settings.export_text(cfg) + "\n")
     elif a.action == "import":
@@ -199,7 +219,9 @@ def _cmd_config(a, out) -> int:
         except (OSError, ValueError) as ex:
             sys.stderr.write(f"Nie wczytano: {ex}\n")
             return EXIT_ERR
-        settings.save(new)
+        if not settings.save(new):
+            sys.stderr.write("Nie udało się zapisać ustawień (sprawdź uprawnienia pliku).\n")
+            return EXIT_ERR
         out.write("Ustawienia wczytane (adres i klucz AI bez zmian).\n")
     return EXIT_OK
 
@@ -242,8 +264,8 @@ def build_parser() -> argparse.ArgumentParser:
             s.add_argument("--force", action="store_true", help="pozwól --yes mimo włączonej w ustawieniach symulacji")
             s.add_argument("--root", action="store_true", help="także operacje administratora (pkexec)")
             s.add_argument("--exclude", action="append", default=[], metavar="ŚCIEŻKA", help="pomiń ścieżkę; można powtarzać")
-            s.add_argument("--older-than", type=float, default=0, metavar="DNI", help="tylko pozycje niezmieniane od tylu dni")
-            s.add_argument("--min-size", type=float, default=0, metavar="MB", help="tylko pozycje od tego rozmiaru")
+            s.add_argument("--older-than", type=_nonneg, default=0, metavar="DNI", help="tylko pozycje niezmieniane od tylu dni")
+            s.add_argument("--min-size", type=_nonneg, default=0, metavar="MB", help="tylko pozycje od tego rozmiaru")
             s.add_argument("--plan", metavar="PLIK", help="zapisz plan (JSON) do przejrzenia i nic nie usuwaj")
             s.add_argument("--apply", metavar="PLIK", help="wykonaj tylko to z planu, co nadal jest bezpieczne (skan od nowa)")
     r = sub.add_parser("report", help="raport HTML lub JSON z całego obrazu")
@@ -261,7 +283,7 @@ def build_parser() -> argparse.ArgumentParser:
     sc.add_argument("--every", choices=sorted(schedule.INTERVALS), default="weekly")
     sc.add_argument("--time", default="", metavar="HH:MM", help="godzina uruchomienia (Linux: domyślnie losowa pora; Windows: 10:00)")
     sc.add_argument("--ai", action="store_true", help="timer pracy w tle: skan + ocena AI (zamiast sprawdzenia dysku)")
-    sc.add_argument("--mode", choices=list(settings.SEARCH_MODES), default="", help="dokładność pracy w tle (z --ai)")
+    sc.add_argument("--mode", choices=["assisted", "ai_only"], default="", help="dokładność pracy w tle (z --ai)")
     sc.add_argument("--min-free", type=int, default=20)
     sc.add_argument("--min-reclaim", type=int, default=5)
     sc.add_argument("--auto-clean", action="store_true")
@@ -298,6 +320,9 @@ def main(argv=None) -> int:
         os.environ["FC_CONFIG"] = os.path.abspath(os.path.expanduser(a.config))
     err = (lambda _m: None) if a.quiet else (lambda m: sys.stderr.write(m + "\n"))
 
+    def fail(m: str) -> None:  # bledy uzycia i konca pracy -q nie wycisza (wycisza tylko postep)
+        sys.stderr.write(m + "\n")
+
     if a.cmd == "config":
         if a.action in ("get", "import", "set") and not a.key:
             p.error("podaj klucz (lub plik dla import)")
@@ -333,7 +358,11 @@ def main(argv=None) -> int:
         from . import diag
         text = diag.build(detect_ai=not a.no_ai)
         if a.out:
-            fsutil.atomic_write(a.out, text, 0o600)
+            try:
+                fsutil.atomic_write(a.out, text, 0o600)
+            except OSError as ex:
+                fail(f"Nie udało się zapisać: {ex}")
+                return EXIT_ERR
             out.write(f"Zapisano: {a.out}\n")
         else:
             out.write(text)
@@ -359,9 +388,13 @@ def main(argv=None) -> int:
         try:
             if a.action == "enable":
                 if a.ai:
-                    out.write("Harmonogram AI w tle " + schedule.enable_ai(a.every, a.time, a.mode) + "\n")
+                    msg = "Harmonogram AI w tle: " + schedule.enable_ai(a.every, a.time, a.mode)
                 else:
-                    out.write("Harmonogram " + schedule.enable(a.every, a.min_free, a.min_reclaim, a.auto_clean, a.time) + "\n")
+                    msg = "Harmonogram: " + schedule.enable(a.every, a.min_free, a.min_reclaim, a.auto_clean, a.time)
+                if "zwrócił kod" in msg:  # pliki zapisane, ale systemctl/schtasks nie wlaczyl timera
+                    fail(msg)
+                    return EXIT_ERR
+                out.write(msg + "\n")
             elif a.action == "disable":
                 if a.ai:
                     out.write("Harmonogram AI w tle " + schedule.disable_ai() + "\n")
@@ -422,8 +455,12 @@ def main(argv=None) -> int:
         data, _cats = collect()
         text = json.dumps(data, ensure_ascii=False, indent=2) if a.json else export.to_html(data, spacelog.load())
         if a.output:
-            with open(a.output, "w", encoding="utf-8") as f:
-                f.write(text)
+            try:
+                with open(a.output, "w", encoding="utf-8", errors="replace") as f:
+                    f.write(text)
+            except OSError as ex:
+                fail(f"Nie udało się zapisać: {ex}")
+                return EXIT_ERR
             out.write(f"Zapisano: {a.output}\n")
         else:
             out.write(text)
@@ -518,20 +555,30 @@ def main(argv=None) -> int:
     if not settings.trustworthy():
         sys.stderr.write("Przerwano: nie mogę wiarygodnie odczytać ustawień (chronione ścieżki). Napraw plik ustawień albo --config.\n")
         return EXIT_ERR
+    from . import scan_windows
+    known = {"cache", "games", "trash", "flatpak", "system", "kernel", "packages"} | {g[0] for g in scan_windows._GROUPS} | {c.key for c in cats}
+    unknown = sorted(set(a.only or []) - known)  # kategorie warunkowe (gry, jadra, pakiety) nie sa literowka, gdy skan ich nie zwrocil
+    if unknown:
+        fail("Nieznana kategoria w --only: " + ", ".join(unknown) + " (klucze pokazuje `scan`).")
+        return EXIT_USAGE
     sel = unattended_selection(cats, a.root, only=a.only, exclude=_expand_excludes(a.exclude), older_than=a.older_than,
                                min_size=int(a.min_size * 1024 * 1024), disk=a.disk)
     if a.plan and a.apply:
-        err("--plan i --apply wykluczają się.")
+        fail("--plan i --apply wykluczają się.")
         return EXIT_USAGE
     if a.plan:
-        fsutil.atomic_write(a.plan, json.dumps(plan_document(cats, sel), ensure_ascii=False, indent=2) + "\n")
+        try:
+            fsutil.atomic_write(a.plan, json.dumps(plan_document(cats, sel), ensure_ascii=True, indent=2) + "\n")
+        except (OSError, ValueError) as ex:
+            fail(f"Nie udało się zapisać planu: {ex}")
+            return EXIT_ERR
         err(f"Plan zapisany: {a.plan} ({len(sel)} pozycji, ok. {core.fmt_size(sum(e.size for e in sel))}). Nic nie usunięto.")
         return EXIT_OK
     if a.apply:
         try:
             plan = load_plan(a.apply)
         except ValueError as ex:
-            err(str(ex))
+            fail(str(ex))
             return EXIT_USAGE
         sel, skipped = apply_plan(cats, sel, plan)
         for why in skipped:
@@ -540,13 +587,19 @@ def main(argv=None) -> int:
     sim = a.dry_run or not a.yes
     if a.yes and not a.dry_run and cfg.get("dry_run") and not a.force:
         sim = True
-        err("W ustawieniach włączona jest symulacja - --yes jej nie przebija (użyj --force albo wyłącz symulację).")
+        fail("W ustawieniach włączona jest symulacja - --yes jej nie przebija (użyj --force albo wyłącz symulację).")
     if sim:
         err(f"Plan (symulacja, nic nie usuwam): {len(sel)} pozycji, ok. {core.fmt_size(total)}")
         core.run_clean(sel, True, err)
+        if as_json:
+            json.dump({"dry_run": True, "items": len(sel), "size": total}, out)
+            out.write("\n")
         return EXIT_OK
     journal: list = []
-    res = core.run_clean(sel, False, err, journal)
+    def clog(m: str) -> None:  # -q wycisza postep, ale nie bledy pojedynczych pozycji
+        (fail if m.lstrip().startswith("!") else err)(m)
+
+    res = core.run_clean(sel, False, clog, journal)
     history.record(journal, res.freed, res.trashed)
     summary = {"freed": res.freed, "problems": res.problems, "items": len(journal)}
     if as_json:

@@ -8,7 +8,7 @@ python -m PyInstaller --noconfirm --onefile --name tidydisk `
 if ($LASTEXITCODE -ne 0) { throw "PyInstaller failed with code ($LASTEXITCODE)" }
 Write-Host "Gotowe: dist\tidydisk.exe  (uruchom: dist\tidydisk.exe scan)"
 
-# Wersja z oknem (PyQt6): wymaga `pip install PyQt6`. Na Windows tylko skan i raport, usuwanie jest zablokowane.
+# Wersja z oknem (PyQt6): wymaga `pip install PyQt6`. Skan, raport i czyszczenie (czyszczenie nie było jeszcze sprawdzone na prawdziwym Windows).
 if ($env:BUILD_GUI -eq "1") {
   python -m PyInstaller --noconfirm --onefile --windowed --name tidydisk-gui `
     --exclude-module tkinter `

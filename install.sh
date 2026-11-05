@@ -14,11 +14,12 @@ install_admin() {
   sudo rm -rf /usr/local/lib/fedora-cleaner /usr/share/polkit-1/actions/org.fedoracleaner.admin-scan.policy  # po zmianie nazwy
   sudo install -d -m 755 -o root -g root /usr/local/lib/tidydisk
   # tresc idzie rura prosto do instalacji jako root (bez pliku tymczasowego, ktory mozna podmienic)
-  ( cd "$here" && /usr/bin/python3 -I -c '
+  local src
+  src="$( cd "$here" && TIDYDISK_NO_MIGRATE=1 /usr/bin/python3 -I -c '
 import sys; sys.path.insert(0, ".")
 from tidydisk import scanner, __version__
-sys.stdout.write(scanner.build_admin_source("/", "", (), argv=True, version=__version__))' ) \
-    | sudo install -m 755 -o root -g root /dev/stdin /usr/local/lib/tidydisk/admin_scan.py
+sys.stdout.write(scanner.build_admin_source("/", "", (), argv=True, version=__version__))' )" || { echo "Nie udało się wygenerować skanera administratora." >&2; return 1; }
+  printf '%s\n' "$src" | sudo install -m 755 -o root -g root /dev/stdin /usr/local/lib/tidydisk/admin_scan.py
   # regula polkit tylko dla tego jednego skryptu (tylko odczyt); bez niej pkexec tez dziala, z ogolnym pytaniem o haslo
   if ! { rpm -q tidydisk || dpkg -s tidydisk; } >/dev/null 2>&1; then  # przy pakiecie RPM/DEB regule dostarcza pakiet
     sudo install -d -m 755 /usr/share/polkit-1/actions
@@ -69,8 +70,10 @@ done
 ICON_FILE="$ICONS/256x256/apps/tidydisk.png"
 
 # W .desktop wpisujemy PELNA sciezke ikony - dziala od razu, bez odswiezania cache motywu.
-sed -e "s|^Exec=tidydisk|Exec=$PREFIX/bin/tidydisk|" \
-    -e "s|^Icon=.*|Icon=$ICON_FILE|" \
+EXEC_ESC="$(printf '%s' "$PREFIX/bin/tidydisk" | sed 's/[&|\\]/\\&/g')"   # & i | w sciezce nie moga psuc sed
+ICON_ESC="$(printf '%s' "$ICON_FILE" | sed 's/[&|\\]/\\&/g')"
+sed -e "s|^Exec=tidydisk|Exec=\\\"$EXEC_ESC\\\"|" \
+    -e "s|^Icon=.*|Icon=$ICON_ESC|" \
   "$HERE/data/tidydisk.desktop" > "$PREFIX/share/applications/tidydisk.desktop"
 chmod 644 "$PREFIX/share/applications/tidydisk.desktop"
 install -Dm644 "$HERE/data/tidydisk.metainfo.xml" "$PREFIX/share/metainfo/tidydisk.metainfo.xml"

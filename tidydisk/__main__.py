@@ -30,7 +30,7 @@ def main() -> None:
         except (AttributeError, ValueError):
             pass
     code = run()
-    if len(sys.argv) > 1 and sys.argv[1] in ("ai", "background"):
+    if next((x for x in sys.argv[1:] if x in ("ai", "background")), None) is not None:
         # wyniki sa zapisane; porzucone zapytania do AI (watki) nie moga wstrzymac wyjscia az do konca limitu czasu
         import os
 

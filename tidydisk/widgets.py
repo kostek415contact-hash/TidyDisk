@@ -234,6 +234,12 @@ class DiskScanWorker(QThread):
 
     def cancel(self) -> None:
         self._cancel = True
+        proc = getattr(self, "_proc", None)
+        if proc is not None:
+            try:
+                proc.terminate()
+            except OSError:
+                pass
 
     def run(self) -> None:
         try:
@@ -263,6 +269,9 @@ class DiskScanWorker(QThread):
                  json.dumps(list(core.KB.data_mounts))],
                 stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True,
             )
+            self._proc = proc
+            if self._cancel:  # cancel() przyszedl, zanim _proc istnial
+                self.cancel()
         except FileNotFoundError:
             self.failed.emit("Brak polecenia pkexec (pakiet polkit).")
             return
@@ -279,6 +288,8 @@ class DiskScanWorker(QThread):
         code = proc.wait()
         if result is not None:
             self.done.emit(result)
+        elif self._cancel:
+            self.failed.emit("Przerwano skanowanie systemu.")
         elif code in (126, 127):
             self.failed.emit("Anulowano lub brak autoryzacji - skanowanie systemu nie ruszyło.")
         else:
@@ -287,7 +298,6 @@ class DiskScanWorker(QThread):
 
 class AnalysisWorker(QThread):
     """Analiza wszystkich plikow (dom + dyski danych): algorytm proponuje, co usunac."""
-    progress = pyqtSignal(int)
     stage = pyqtSignal(str)  # opis biezacego etapu: numer, miejsce, postep
     fraction = pyqtSignal(float)  # ogolny postep 0..1 albo -1 gdy nieznany
     done = pyqtSignal(object)  # ScanResult (polaczony) albo None
@@ -305,7 +315,6 @@ class AnalysisWorker(QThread):
             cfg = settings.apply(settings.load())
 
             def report(n, t, path, ri, nroots, root, b, names, st, txt, frac):
-                self.progress.emit(b + n)
                 self.stage.emit(f"Etap {st + 1}/{len(names)}: {names[st]} - miejsce {ri} z {nroots}: {root} - {txt}")
                 self.fraction.emit(frac)
 
@@ -725,6 +734,7 @@ class PhotoWorker(QThread):
             items = []
             for i, (p, size, mt) in enumerate(files):
                 if self._cancel:
+                    self.failed.emit("Przerwano.")
                     return
                 if i % 25 == 0:
                     self.progress.emit(i, len(files))

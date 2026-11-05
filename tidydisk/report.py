@@ -31,6 +31,15 @@ def os_pretty() -> str:
     return platform.platform()
 
 
+def mask_home(text: str, home: str) -> str:
+    """Katalog domowy -> ~ (tylko caly czlon sciezki; na Windows obie postacie separatora i bez rozrozniania wielkosci liter)."""
+    if not home.rstrip("\\/") or re.fullmatch(r"[A-Za-z]:[\\/]*", home):
+        return text  # HOME=/ albo korzen dysku: nie ma co maskowac (wytarloby caly tekst)
+    win = "\\" in home or (len(home) > 1 and home[1] == ":")
+    pat = r"[\\/]+".join(map(re.escape, re.split(r"[\\/]+", home.rstrip("\\/")))) if win else re.escape(home.rstrip("/"))
+    return re.sub(r"(?<![\w~.-])" + pat + r"(?![\w-]|\.\w)", "~", text, flags=re.I if win else 0)
+
+
 class Anon:
     def __init__(self, enabled: bool = True, private_names: bool = False) -> None:
         self.enabled = enabled
@@ -40,10 +49,18 @@ class Anon:
     def path(self, text: str) -> str:
         if not self.enabled:
             return text
-        text = text.replace(self.home, "~")
-        text = re.sub(r"/home/[^/\s]+", "~", text)
+        text = mask_home(text, self.home)
+        text = re.sub(r"(?<![\w.~-])/home/[^/\s'\"():,;]+", "~", text)  # cudze konta: znika cała nazwa, bez zjadania znaków za nią
+        text = re.sub(r"(?<!~/home/)(?<=/home/)(?!<użytkownik>)[^/\s'\"():,;~]+", "<użytkownik>", text)  # /home/<login> w srodku sciezki (kopia na innym dysku)
         text = re.sub(r"(/run/media|/media)/[^/\s]+", r"\1/<użytkownik>", text)
         return text
+
+    def text(self, s: str) -> str:
+        """Opis (co to jest / dlaczego): ścieżki jak w path(), a nazwy w «…» (np. oryginał duplikatu) maskowane, gdy nazwy są ukryte."""
+        if not self.enabled:
+            return s
+        s = self.path(s)
+        return s if self.private else re.sub(r"«[^»]*»", "«…»", s)
 
     def shown(self, path: str, rating: str, is_dir: bool = False) -> str:
         """Sciezka do pokazania - maskuje szczegoly w 'Twoich plikach'."""
@@ -133,9 +150,9 @@ def build_markdown(cats, protected=None, scan=None, disks=None, anon: Anon | Non
         L.append("| Pozycja | Rozmiar | Ocena | Co to jest i dlaczego | Gdzie |" + (" Powód zostawienia |" if with_reason else ""))
         L.append("|---|---:|---|---|---|" + ("---|" if with_reason else ""))
         for r in items:
-            text = f"{r['what']} - {r['why']}" if r["what"] and r["why"] else f"{r['what']}{r['why']}".strip()
+            text = an.text(f"{r['what']} - {r['why']}" if r["what"] and r["why"] else f"{r['what']}{r['why']}".strip())
             lab, where = _mask(an, r)
-            if text in seen_text:
+            if text and text in seen_text:
                 shown = f"↑ jak „{_cell(seen_text[text])}”"
             else:
                 seen_text[text] = lab
@@ -144,7 +161,7 @@ def build_markdown(cats, protected=None, scan=None, disks=None, anon: Anon | Non
             line = (f"| {_cell(lab)} | {fmt_size(r['size'])} | "
                     f"{kb.RATING_LABEL.get(r['rating'], r['rating'])} | {shown} | `{_cell(where)}` |")
             if with_reason:
-                line += f" {_cell(r['reason'])} |"
+                line += f" {_cell(an.text(r['reason']))} |"
             L.append(line)
         L.append("")
 
@@ -309,8 +326,8 @@ def build_csv(cats, protected=None, anon: Anon | None = None) -> str:
         lab, where = _mask(an, r)
         w.writerow([fsutil.csv_safe(x) for x in
                     [r["decision"], r["category"], lab, r["size"], r["rating"],
-                     "usunąć" if r["suggested"] else "zostawić", r["what"], r["why"],
-                     r["warn"] or r["reason"], where, "tak" if r["root"] else "nie",
+                     "usunąć" if r["suggested"] else "zostawić", an.text(r["what"]), an.text(r["why"]),
+                     an.text(r["warn"] or r["reason"]), where, "tak" if r["root"] else "nie",
                      r["rule"], an.path(r["disk"])]])
     prot = list(protected or [])
     for c in cats:

@@ -1,5 +1,5 @@
 Name:           tidydisk
-Version:        2.23.5
+Version:        2.23.11
 Release:        1%{?dist}
 Summary:        Free up disk space safely, with optional local AI review
 License:        GPL-3.0-or-later
@@ -67,6 +67,18 @@ desktop-file-validate %{buildroot}%{_datadir}/applications/%{name}.desktop
 %{_libexecdir}/%{name}/
 
 %changelog
+* Thu Nov 05 2026 TidyDisk contributors <noreply@example.invalid> - 2.23.11-1
+- Poprawki po audycie: anonimizacja sciezek, uczenie, CLI, historia, okno
+* Thu Nov 05 2026 TidyDisk contributors <noreply@example.invalid> - 2.23.10-1
+- Rownolegle zapisy plikow, anonimizacja, historia czesciowego czyszczenia, poprawki CLI i okna
+* Thu Nov 05 2026 TidyDisk contributors <noreply@example.invalid> - 2.23.9-1
+- Ochrona zagniezdzonych .ssh/.gnupg/.git, poprawki czyszczenia, raportow i AI
+* Thu Nov 05 2026 TidyDisk contributors <noreply@example.invalid> - 2.23.8-1
+- Naprawa bledu okna po czyszczeniu, historia z nazwami w zlym kodowaniu
+* Thu Nov 05 2026 TidyDisk contributors <noreply@example.invalid> - 2.23.7-1
+- Naprawa regresji z 2.23.6 oraz poprawki GUI
+* Wed Nov 04 2026 TidyDisk contributors <noreply@example.invalid> - 2.23.6-1
+- Ochrona stref Nie ruszaj, kontrola przed usunieciem, kosz na dyskach
 * Wed Nov 04 2026 TidyDisk contributors <noreply@example.invalid> - 2.23.5-1
 - Poprawki po pelnym audycie
 * Wed Nov 04 2026 TidyDisk contributors <noreply@example.invalid> - 2.23.4-1

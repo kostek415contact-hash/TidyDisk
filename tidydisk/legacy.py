@@ -4,6 +4,7 @@ Nic nie jest kasowane bez kopii: katalogi sa PRZENOSZONE (rename) tylko gdy nowy
 from __future__ import annotations
 
 import os
+import re
 from pathlib import Path
 
 OLD = "fedora-cleaner"
@@ -41,7 +42,11 @@ def migrate_units(unit_dir: Path, systemctl=None) -> list:
         try:
             for src, ext in ((old_s, "service"), (old_t, "timer")):
                 if src.exists() and not (unit_dir / f"{new_name}.{ext}").exists():  # nowszych ustawien nie nadpisujemy
-                    text = src.read_text(encoding="utf-8").replace(OLD_PKG, NEW).replace(OLD, NEW)
+                    text = src.read_text(encoding="utf-8")
+                    from . import schedule
+                    text = re.sub(r'Environment="?PYTHONPATH=[^\n"]*(?:fedora[-_]cleaner)[^\n"]*"?', lambda _m: f"Environment={schedule._env_line()}", text)
+                    for _o in (OLD_PKG, OLD):  # nazwy jednostek/modulu, ale nie czlony sciezek (PYTHONPATH=/home/u/fedora-cleaner)
+                        text = re.sub(r"(?<![/\\\w.-])" + re.escape(_o), NEW, text)
                     (unit_dir / f"{new_name}.{ext}").write_text(text, encoding="utf-8")
         except OSError:
             continue

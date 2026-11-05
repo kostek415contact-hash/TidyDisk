@@ -58,7 +58,7 @@ def export_rows(rows: list, dest: str) -> int:
     import io
     import json
     if str(dest).lower().endswith(".json"):
-        text = json.dumps({"schema": 1, "wyniki": rows}, ensure_ascii=False, indent=1) + "\n"
+        text = json.dumps({"schema": 1, "wyniki": rows}, ensure_ascii=True, indent=1) + "\n"
     else:
         buf = io.StringIO()
         w = csv.DictWriter(buf, fieldnames=["etap", "sciezka", "rozmiar", "werdykt", "ryzyko", "uzasadnienie", "czas"])
@@ -158,14 +158,18 @@ def run(mode: str | None = None, quiet: bool = False, notify: bool = False, say=
                                    cancel=cancel, cfg=cfg)
                 info["stats"] = stats
                 info["cancelled"] = bool(stats.get("przerwano"))
+                if not info["cancelled"] and stats.get("bez_odpowiedzi", 0) > 0 and not (stats.get("foldery", 0) - stats.get("bez_odp_foldery", 0) > 0 or stats.get("z_pamieci", 0) or stats.get("pliki", 0)):
+                    info["error"] = f"Serwer AI nie odpowiedział na żadne zapytanie ({stats['bez_odpowiedzi']} bez odpowiedzi) - sprawdź model i adres w Ustawieniach AI."
+                    code = EXIT_ERR
+                    say(info["error"])
             except Exception as ex:  # noqa: BLE001
                 info["error"] = ai.friendly_error(str(ex))
                 code = EXIT_ERR
                 say("Błąd oceny AI: " + info["error"])
     info["seconds"] = int(time.time() - t0)
     try:
-        fsutil.atomic_write(LASTRUN, json.dumps(info, ensure_ascii=False))
-    except OSError:
+        fsutil.atomic_write(LASTRUN, json.dumps(info, ensure_ascii=True))
+    except (OSError, ValueError):
         pass
     say(describe_last(info))
     if notify and (info.get("error") or (info.get("stats") or {}).get("zaznaczone", 0) > 0):  # bez wyniku nie przeszkadzamy

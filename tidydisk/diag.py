@@ -48,4 +48,6 @@ def build(detect_ai: bool = True) -> str:
             L.append("Serwer AI: odrzucił klucz API")
         except Exception as ex:  # noqa: BLE001
             L.append(f"Serwer AI: błąd ({ex})")
-    return "\n".join(L).replace(home, "~").replace(home.replace("\\", "\\\\"), "~") + "\n"
+    text = "\n".join(L)
+    from . import report
+    return report.mask_home(text, home) + "\n"

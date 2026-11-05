@@ -128,7 +128,7 @@ Strona **Ustawienia** (menu boczne) ma siedem zakładek; **Zapisz** działa od r
 algorytmu obowiązują od następnej analizy). Plik: `~/.config/tidydisk/settings.json`; błędny wpis w pliku
 nie psuje programu - wartości są sprawdzane i przycinane do dozwolonego zakresu.
 
-- **Ogólne** – wygląd (ciemny motyw TidyDisk albo systemowy KDE), kosz dla moich plików, pytanie o każdą pozycję, symulacja, automatyczna analiza, ustawienia raportu.
+- **Ogólne** – wygląd (motyw: ciemny TidyDisk, systemowy KDE i inne dostępne na liście), kosz dla moich plików, pytanie o każdą pozycję, symulacja, automatyczna analiza, ustawienia raportu.
 - **Reguły** – lista pól tak/nie: czego program **może** proponować do usunięcia - pliki ISO, instalatory, archiwa,
   niedokończone pobrania, pliki tymczasowe, logi, zrzuty pamięci, filmy, identyczne kopie, archiwa rozpakowane obok,
   foldery do odtworzenia (build, node_modules, Library), cache, stare rzeczy w miejscach „zwykle zbędnych” oraz
@@ -161,7 +161,7 @@ nie psuje programu - wartości są sprawdzane i przycinane do dozwolonego zakres
 | Twoje pliki | dokumenty, zdjęcia, projekty | nigdy sam; usuwane tylko, gdy je zaznaczysz (domyślnie do kosza) |
 
 Dodatkowe zabezpieczenia: programy, które teraz działają (np. Firefox), są oznaczone ⚠ i nie są
-zaznaczane; usuwanie jest możliwe tylko w `~/.cache`, `~/.var/app`, `~/.local/share/Trash`
+zaznaczane; automatycznie czyszczone są tylko znane miejsca (cache, shadery, Temp...), a ręcznie wybrane pliki muszą leżeć w katalogu domowym lub na dysku danych i nie mogą zawierać w środku `.git`, `.ssh` ani miejsc „Nie ruszaj”
 (+ polecenia dnf/journalctl/flatpak jako administrator); dowiązania symboliczne nie są
 śledzone; opcja „Symulacja” pokazuje w dzienniku, co by się stało.
 
@@ -249,14 +249,14 @@ Historia zmian: `CHANGELOG.md`.
 
 - `tidydisk ai [--mode ai_only] [--notify] [-q] [--wait-ai MIN]` - skan i ocena AI bez okna (to uruchamia timer); `ai --last` pokazuje wynik, `ai --export plik.csv` (albo `.json`) zapisuje zapamiętane oceny AI.
 - `tidydisk scan|analyze [--format text|json|csv]` - skan i propozycje bez okna; `tidydisk report [--json] [-o plik]` - raport HTML (albo JSON); `tidydisk notify [--min-free GB] [--min-reclaim GB] [--disk PUNKT]` - sprawdzenie dysku z powiadomieniem.
-- `tidydisk schedule enable|disable|status [--every daily|weekly|monthly] [--time HH:MM] [--ai]` - harmonogram (timer systemd użytkownika, tylko Linux).
+- `tidydisk schedule enable|disable|status [--every daily|weekly|monthly] [--time HH:MM] [--ai]` - harmonogram (Linux: timer systemd użytkownika; Windows: Harmonogram zadań).
 - `tidydisk config path|list|get|set|export|import`, `tidydisk rules`, `tidydisk history` - ustawienia, reguły i historia z terminala. Opcje globalne: `--config plik`, `-q`, `-V`. Kody wyjścia: 0 ok, 1 błąd, 2 złe użycie, 3 praca w tle już działa, 4 brak serwera AI.
 - `tidydisk changes` - co urosło lub przybyło od poprzedniego skanu.
 - `tidydisk diag [--out plik]` - zrzut diagnostyczny do wysłania razem z raportem.
 
 ## Pakiety
 
-`packaging/tidydisk.spec` buduje RPM (`rpmbuild -ba`), `bash packaging/build-deb.sh` buduje `.deb` (Debian, Ubuntu, Mint); CI zapisuje gotowe pakiety jako artefakty (`rpm-fedora-44|45|rawhide`, `deb`, `tidydisk-windows-exe`). Instalacja z `install.sh` zostaje dla użytkownika bez roota (na Debianie: `sudo apt install python3-pyqt6`).
+`packaging/tidydisk.spec` buduje RPM (`rpmbuild -ba`), `bash packaging/build-deb.sh` buduje `.deb` (Debian, Ubuntu, Mint); CI zapisuje gotowe pakiety jako artefakty (`rpm-fedora-44|45|rawhide`, `deb`, `tidydisk-windows-exe`, `tidydisk-windows-gui`). Instalacja z `install.sh` zostaje dla użytkownika bez roota (na Debianie: `sudo apt install python3-pyqt6`).
 
 ### Gdzie program trzyma pliki
 

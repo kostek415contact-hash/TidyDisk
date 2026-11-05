@@ -27,7 +27,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from . import ai, rules, settings
+from . import ai, osal, rules, settings
 
 # (klucz, etykieta, podpowiedz, rodzaj, parametry)  rodzaj: bool | int | float | choice | str | secret
 TABS = [
@@ -351,8 +351,8 @@ class SettingsPage(QWidget):
         self.ignore_box.setPlainText("\n".join(learner.ignored) if learner is not None else "")
         self.refresh_learned()
         self.paths_label.setText(
-            f"Plik ustawień (tylko dla Ciebie, 0600): {settings.path()}\n"
-            "Uczenie się z Twoich decyzji: ~/.local/share/tidydisk/learn.json")
+            f"Plik ustawień (tylko dla Ciebie{'' if osal.is_windows() else ', 0600'}): {settings.path()}\n"
+            f"Uczenie się z Twoich decyzji: {osal.data_dir() / 'learn.json'}")
 
     def values(self) -> dict:
         out = {key: self._get(key) for key in self.w}

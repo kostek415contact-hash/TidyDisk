@@ -8,7 +8,7 @@ import time
 import urllib.parse
 from pathlib import Path
 
-from . import osal
+from . import fsutil, osal
 
 MAX_RUNS = 200
 MAX_ITEMS = 500
@@ -39,15 +39,9 @@ def record(items: list, freed: int, trashed: int, directory=None, when: float | 
                       "paths": [str(p) for p in i["paths"]][:20], "restored": False} for i in items[:MAX_ITEMS]]}
     runs = [run] + load(directory)
     try:
-        f = _file(directory)
-        f.parent.mkdir(parents=True, exist_ok=True)
-        tmp = f.with_suffix(".tmp")
-        fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)  # zawiera sciezki
-        with os.fdopen(fd, "w", encoding="utf-8") as fh:
-            json.dump(runs[:MAX_RUNS], fh, ensure_ascii=False)
-        os.replace(tmp, f)
+        fsutil.atomic_write(_file(directory), json.dumps(runs[:MAX_RUNS], ensure_ascii=True))  # ASCII-escape: nazwy w zlym kodowaniu nie wywalaja zapisu
         return True
-    except OSError:
+    except (OSError, ValueError):
         return False
 
 
@@ -59,8 +53,8 @@ def mark_restored(run_ts: int, path: str, directory=None) -> None:
                 if path in it.get("paths", []):
                     it["restored"] = True
     try:
-        _file(directory).write_text(json.dumps(runs, ensure_ascii=False), encoding="utf-8")
-    except OSError:
+        fsutil.atomic_write(_file(directory), json.dumps(runs, ensure_ascii=True))
+    except (OSError, ValueError):
         pass
 
 
@@ -69,7 +63,28 @@ def restore_from_trash(path: str, trash_dir=None) -> tuple:
     from . import osal
     if osal.is_windows() and trash_dir is None:
         return False, "Przywróć element z Kosza w Eksploratorze (prawy przycisk → Przywróć)."
-    trash = Path(trash_dir or Path.home() / ".local" / "share" / "Trash")
+    if trash_dir is not None:
+        return _restore_in(Path(trash_dir), path, None)
+    cands = [(Path(os.environ.get("XDG_DATA_HOME") or Path.home() / ".local" / "share") / "Trash", None)]
+    try:  # kosze na innych dyskach: $topdir/.Trash-$uid i $topdir/.Trash/$uid (tam gio trash przenosi pliki z dyskow danych)
+        from . import core
+        uid = os.getuid()
+        for m, _fs in core.read_mounts():
+            cands += [(Path(m) / f".Trash-{uid}", m), (Path(m) / ".Trash" / str(uid), m)]
+    except (AttributeError, OSError, ImportError, TypeError, ValueError):
+        pass
+    msg = "Kosz jest pusty lub niedostępny."
+    for tr, top in cands:
+        if not (tr / "info").is_dir():
+            continue
+        res = _restore_in(tr, path, top)
+        if res[0] or "już plik" in res[1]:
+            return res
+        msg = "Nie ma tego w koszu (mógł zostać opróżniony)."
+    return False, msg
+
+
+def _restore_in(trash: Path, path: str, topdir) -> tuple:
     info_dir, files_dir = trash / "info", trash / "files"
     best = None
     try:
@@ -87,6 +102,8 @@ def restore_from_trash(path: str, trash_dir=None) -> tuple:
         for ln in txt.splitlines():
             if ln.startswith("Path="):
                 orig = urllib.parse.unquote(ln[5:])
+                if topdir and not os.path.isabs(orig):
+                    orig = os.path.join(topdir, orig)  # w koszu dysku Path= bywa wzgledna wobec punktu montowania
             elif ln.startswith("DeletionDate="):
                 date = ln[13:]
         if orig == path and (files_dir / n[:-10]).exists() or (orig == path and os.path.islink(files_dir / n[:-10])):

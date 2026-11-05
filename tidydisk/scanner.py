@@ -719,6 +719,14 @@ def scan(root: str, kbase: "kb.KnowledgeBase", progress=None, cancel=None,
                     c = [sc, p, _alloc(st), int(st.st_mtime), fv.rating, fv.title, why, "dup"]
                     cands.append(c)
                     by_path[p] = c
+        if res.keepers:  # katalog zawierajacy zostawiany egzemplarz (np. build/ z oryginalem kopii) nie jest proponowany; zbior przodkow = O(n)
+            anc: set = set()
+            for k in res.keepers:
+                i = k.rfind("/")
+                while i > 0 and k[:i] not in anc:
+                    anc.add(k[:i])
+                    i = k.rfind("/", 0, i)
+            cands = [c for c in cands if c[7] != "dir" or c[1].rstrip("/") not in anc]
         dirs = [c[1] + "/" for c in cands if c[7] == "dir"]
         if dirs:  # pliki wewnatrz proponowanego katalogu sa juz w nim zawarte
             dirs_t = tuple(dirs)

@@ -8,6 +8,7 @@ import shlex
 import shutil
 import stat
 import subprocess
+import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -183,7 +184,12 @@ def path_size(path: str) -> int:
 
 def bad_path(path: str) -> bool:
     """Sciezka niebezpieczna z zasady: nie bezwzgledna albo konczaca sie na '.' / '..' (rozwiazalaby sie gdzie indziej)."""
-    return (not isinstance(path, str) or not os.path.isabs(path)
+    if isinstance(path, str):
+        try:
+            path.encode(sys.getfilesystemencoding(), "surrogateescape")
+        except UnicodeError:
+            return True  # np. pojedynczy surogat z JSON-u: nie da sie go zapisac jako nazwy pliku
+    return (not isinstance(path, str) or "\0" in path or not os.path.isabs(path)
             or os.path.basename(path.rstrip("/")) in ("", ".", ".."))
 
 
@@ -322,9 +328,17 @@ def is_user_target(path: str) -> tuple:
         return False, "to cały katalog domowy lub dysk"
     if not any(full.startswith(r.rstrip("/") + "/") for r in roots):
         return False, "poza katalogiem domowym i dyskami danych"
-    v = KB.classify(full)
-    if v.rating == kb.KEEP:
-        return False, f"chronione ({v.title})"
+    forms = [full, path]  # reguly bazy liczone sa od HOME w postaci nierozwiazanej, wiec sprawdzamy tez ja (HOME bywa dowiazaniem na dysk danych)
+    rh = os.path.realpath(str(HOME))
+    if full.startswith(rh.rstrip("/") + "/"):
+        forms.append(str(HOME).rstrip("/") + full[len(rh):])
+    for f in forms:
+        v = KB.classify(f)
+        if v.rating == kb.KEEP:
+            return False, f"chronione ({v.title})"
+    for part in full.split("/"):  # .git/.ssh/.gnupg na dowolnej glebokosci (takze inna wielkosc liter), nie tylko jako folder nadrzedny
+        if part.lower() in KEEP_NAMES:
+            return False, f"chronione ({part})"
     return True, ""
 
 
@@ -484,6 +498,9 @@ def win_check(path: str, user: bool = False) -> tuple:
     if v.rating == kb.KEEP:
         return False, f"chronione ({v.title})"
     n = kb_windows.norm(path)
+    for part in n.split("/"):
+        if part.lower() in KEEP_NAMES:
+            return False, f"chronione ({part})"
     if not (n.startswith(KB.home + "/") or any(n.startswith(m + "/") for m in KB.data_mounts)):
         return False, "poza katalogiem domowym i dyskami danych"
     if not user and v.rating not in (kb.SAFE, kb.REVIEW):
@@ -666,7 +683,7 @@ def list_folder(path: str, sizes: dict | None = None, limit: int = 3000, budget:
 def run_text(cmd: list, timeout: int = 60) -> tuple[int, str]:
     try:
         r = subprocess.run(
-            cmd, capture_output=True, text=True, timeout=timeout, env=ENV_C
+            cmd, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=timeout, env=ENV_C
         )
         return r.returncode, r.stdout
     except Exception:
@@ -767,7 +784,9 @@ def running_names() -> set:
 def running_warn(name: str, running: set) -> str:
     """Tekst ostrzezenia, jesli program zwiazany z katalogiem cache dziala."""
     cands = [c.lower() for c in PROC_MAP.get(name, [])] + [name.lower()]
-    hit = [c for c in cands if c in running]
+    hit = [c for c in cands if c in running or (len(c) > 15 and c[:15] in running)]  # comm w /proc jest obciety do 15 znakow
+    hit += [r for r in running if len(r) >= 15 and r not in hit
+            and (name.lower().startswith(r) or any(len(c) >= 6 and r.startswith(c) for c in cands))][:1]  # comm obciety do 15 znakow, np. "chromium-browse"
     if hit:
         return f"Program działa ({hit[0]}) - zamknij go przed czyszczeniem"
     return ""
@@ -1238,6 +1257,7 @@ def run_clean(entries: list, dry: bool, log=lambda _m: None, journal: list | Non
                 log(f"    usunąłbym: {p}")
             continue
         errors: list = []
+        pre = list(dict.fromkeys(p for p in e.paths if os.path.lexists(p))) if e.kind in ("path", "contents") else None  # co naprawde istnialo przed usuwaniem
         if e.kind == "path":
             for p in e.paths:
                 if e.rule == "analiza" and not rules.allowed(
@@ -1245,6 +1265,17 @@ def run_clean(entries: list, dry: bool, log=lambda _m: None, journal: list | Non
                         settings.RUNTIME["rules_off"]):
                     errors.append(f"pominięto (wyłączone w Ustawienia → Reguły): {p}")  # ostatnia blokada, niezalezna od listy
                     continue
+                if e.rule == "analiza":
+                    try:
+                        st = os.lstat(p)
+                    except FileNotFoundError:
+                        continue  # juz nie istnieje
+                    except OSError as ex:
+                        errors.append(f"{p}: {ex.strerror}")
+                        continue
+                    if stat.S_ISREG(st.st_mode) and e.size not in (st.st_size, osal.alloc_size(st)):  # skan podaje rozmiar zajety na dysku, nie logiczny
+                        errors.append(f"pominięto (plik zmienił się od skanu - rozmiar {fmt_size(e.size)} → {fmt_size(st.st_size)}): {p}")
+                        continue
                 if e.user_pick:
                     ok, why = is_user_target(p)
                     if not ok:
@@ -1275,11 +1306,24 @@ def run_clean(entries: list, dry: bool, log=lambda _m: None, journal: list | Non
             log(f"    ! {er}")
         if len(errors) > 20:
             log(f"    ! … i {len(errors) - 20} kolejnych błędów")
+        how = "trash" if (e.user_pick and e.trash) else ("command" if e.kind == "flatpak_user" else "delete")
         if errors:
             res.problems += 1
+            gone = [p for p in (pre or []) if not os.path.lexists(p)]
+            if gone and e.paths:  # czesciowy sukces: to, co zniknelo, trafia do Historii
+                part = int(e.size * len(gone) / max(len(pre or []), 1))
+                if journal is not None:
+                    journal.append({"label": e.label, "size": part, "paths": gone, "how": how})
+                if how == "trash":
+                    res.trashed += part
+                else:
+                    res.freed += part
+        elif pre is not None and not pre:
+            log("    już nie istnieje - pomijam")
+            continue
         elif journal is not None:
-            journal.append({"label": e.label, "size": e.size, "paths": list(e.paths or [e.cmd or e.kind]),
-                            "how": "trash" if (e.user_pick and e.trash) else ("command" if e.kind == "flatpak_user" else "delete")})
+            journal.append({"label": e.label, "size": e.size, "paths": list(pre if pre is not None else (e.paths or [e.cmd or e.kind])),
+                            "how": how})
         if errors:
             pass
         elif e.user_pick and e.trash:
@@ -1303,7 +1347,7 @@ def run_clean(entries: list, dry: bool, log=lambda _m: None, journal: list | Non
                     ["pkexec", "/bin/bash", "-c", script],
                     stdout=subprocess.PIPE,
                     stderr=subprocess.STDOUT,
-                    text=True,
+                    text=True, encoding="utf-8", errors="replace",
                 )
                 assert proc.stdout is not None
                 for line in proc.stdout:
@@ -1317,7 +1361,7 @@ def run_clean(entries: list, dry: bool, log=lambda _m: None, journal: list | Non
                 else:
                     log(f"    ! Polecenia zakończyły się kodem {code}")
                     res.problems += 1
-            except FileNotFoundError:
+            except OSError:
                 log("    ! Brak polecenia pkexec (pakiet polkit).")
                 res.problems += 1
     return res

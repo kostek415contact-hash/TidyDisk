@@ -1,5 +1,78 @@
 # Historia zmian
 
+## 2.23.11 - Poprawki po kolejnym audycie
+
+- **Naprawa (CLI):** `clean --only games|kernel|packages` (i kategorie Windows) nie kończy się już błędem tylko dlatego, że skan na tym komputerze takiej kategorii nie zwrócił; `config set` nie zgłasza fałszywego błędu przy normalizacji (spacje, `~`, końcowy `/`, duplikaty); `--min-size` i `--older-than` odrzucają `nan`/`inf`; `-q` nie ukrywa już błędów pojedynczych pozycji przy czyszczeniu.
+- **Naprawa (uczenie):** jeden uszkodzony wpis w `learn.json` nie kasuje już wszystkich próbek ani listy „Nie proponuj więcej”.
+- Raport/diagnostyka: ścieżka z `/home/…` wewnątrz katalogu domowego nie zamienia się w `~~`; login w ścieżce kopii na innym dysku jest maskowany bez niszczenia struktury; `HOME=/` nie wyciera całego tekstu.
+- Historia: nieistniejące katalogi nie zawyżają „zwolniono”; proporcja przy częściowym sukcesie liczona z istniejących ścieżek; zapis „zwolniono” nie zależy od dziennika; ścieżka z pojedynczym surogatem jest odrzucana zamiast przerywać czyszczenie.
+- Zapisy plików: `fsync` przed podmianą, dowiązanie (np. z dotfiles) zostaje dowiązaniem, `FC_CONFIG` ze ścieżką względną działa.
+- Okno: kliknięcie kategorii z ukrytymi (filtrem) dziećmi potrafi ją odznaczyć; przerwanie skanu administratora działa też, gdy trafi przed startem procesu, i kończy się komunikatem „Przerwano”; „Wszystkie pliki” znów liczą rozmiary na żywo (rozmiary z analizy zaniżały foldery z twardymi dowiązaniami).
+- Instalator: skaner administratora generowany z `TIDYDISK_NO_MIGRATE=1` (jak w pakietach).
+- Usunięty martwy sygnał postępu analizy.
+- Nie uruchamiane jeszcze na prawdziwym Windows.
+
+## 2.23.10 - Audyt: równoległe zapisy, anonimizacja, historia, CLI
+
+- **Naprawa (ważne):** równoległe zapisy ustawień, historii i pamięci uczenia mogły uszkodzić plik (wspólny plik tymczasowy) albo po cichu się nie udać. Teraz każdy zapis ma własny plik tymczasowy.
+- Anonimizacja raportu i diagnostyki: katalog domowy znika też przy apostrofie, nawiasie, dwukropku i przecinku oraz na Windows (wielkość liter, `/` i `\`); cudze konta w `/home/...` nie zjadają znaków za nazwą. (Wpis 2.23.9 o `/home/janusz` opisywał to nieprecyzyjnie: cudze konta były i są maskowane do `~`.)
+- Historia: wpis z kilkoma ścieżkami, w którym część się usunęła, a część nie, zapisuje to, co zniknęło; nieistniejący plik nie zawyża „zwolniono” i nie trafia do Historii; błąd odczytu informacji o pliku (inny niż „brak”) jest raportowany.
+- Zapisy eksportu AI i `lastrun.json` nie wywalają się na nazwach w złym kodowaniu; ścieżka z znakiem NUL jest odrzucana; ustawienia zagnieżdżone w nieskończoność nie rzucają wyjątku.
+- CLI: `-q` nie ukrywa już błędów użycia; `clean --json` bez `--yes` wypisuje podsumowanie symulacji; nieznana kategoria w `--only` to błąd; `config set` ostrzega i zwraca błąd, gdy wartość została odrzucona lub zmieniona; zapis do niedostępnej ścieżki (`--plan`, `diag --out`, `report -o`) daje komunikat zamiast tracebacku; `tidydisk -q ai` kończy się od razu po zapisie wyników.
+- Praca AI w tle: błąd „serwer nie odpowiedział” nie pojawia się już, gdy foldery zostały ocenione, a zawiodła tylko weryfikacja.
+- Duplikaty: filtr folderów z zostawianym oryginałem działa w czasie liniowym (wcześniej minuty przy 100 tys. plików) i nie gubi kopii wewnątrz folderu.
+- Okno: „Zaznacz polecane / Odznacz” nie ruszają wierszy ukrytych filtrem także w „Wszystkich plikach” (ukryty dysk); kategoria przy filtrze pokazuje stan częściowy; „Wszystkie pliki” korzystają z rozmiarów z analizy; przerwanie skanu administratora zatrzymuje proces; teksty o Harmonogramie i pliku uczenia dostosowane do Windows.
+- Migracja starych timerów podmienia też stary `PYTHONPATH`; instalator: `&`/`|` w ścieżce nie psują wpisu `.desktop`, a nieudane generowanie skanera administratora nie zostawia pustego pliku.
+- Uczenie: uszkodzony `learn.json` o poprawnym JSON-ie nie wywala programu.
+- Nie uruchamiane jeszcze na prawdziwym Windows.
+
+## 2.23.9 - Kolejny audyt: ochrona, czyszczenie, raporty, AI
+
+- **Bezpieczeństwo:** `.ssh`, `.gnupg` i `.git` (także `.GIT` na dyskach bez rozróżniania wielkości liter) są chronione na każdej głębokości, również gdy wskażesz sam taki folder poza `~`. Dotyczy Linuksa i Windows.
+- Czyszczenie: wyjście poleceń w złym kodowaniu (pkexec, podman, flatpak) nie przerywa już czyszczenia ani nie gubi wpisu w Historii; plik 0 B, który od skanu zaczął się pobierać, nie jest kasowany.
+- `clean --exclude '$HOME/…'` rozwija zmienne; ścieżka chroniona w ustawieniach bez ścieżki bezwzględnej nie jest już po cichu pomijana (nienadzorowane czyszczenie odmawia).
+- Nazwy plików w złym kodowaniu nie wywalają zapisu uczenia, ustawień, planu `--plan` ani raportu.
+- Raport/diagnostyka: nazwy w «…» (np. oryginał duplikatu) są maskowane przy anonimizacji, a skracanie katalogu domowego nie ucina cudzych loginów (`/home/janusz`).
+- `schedule enable` zwraca błąd, gdy systemctl/schtasks nie włączył timera; `schedule --mode` przyjmuje tylko assisted/ai_only.
+- AI: numer pozycji tylko całkowity (nie 1.9 ani true), odporność na dziwne odpowiedzi serwera, lepsze rozpoznanie błędów 401/403 i CUDA; praca w tle zgłasza błąd, gdy serwer nie odpowiedział na żadną paczkę plików.
+- Okno: „Zaznacz polecane” i „Odznacz” nie ruszają wierszy ukrytych filtrem; błąd skanu pokazuje komunikat zamiast pustej listy; anulowanie sprawdzania zdjęć kończy się komunikatem.
+- Duplikaty: folder (np. `build/`) zawierający zostawiany oryginał nie jest proponowany do usunięcia.
+- Migracja starych timerów nie psuje ścieżki w `PYTHONPATH`; instalator cytuje `Exec=` przy spacji w ścieżce.
+- Nie uruchamiane jeszcze na prawdziwym Windows.
+
+## 2.23.8 - Naprawa błędu okna po czyszczeniu
+
+- **Naprawa (ważne):** w 2.23.7 po każdym czyszczeniu w oknie pojawiał się błąd „nieoczekiwany”, a lista Polecanych nie odświeżała się (metoda czyszcząca „duchy” trafiła do złej klasy). Dodany test pilnuje, żeby okno główne nie sięgało po dane strony Sprzątania.
+- Okno: „Nie proponuj tego więcej” i „Zawsze zostaw” naprawdę usuwają wiersz (wcześniej wracał po zmianie filtra); po nowej analizie panel szczegółów nie działa na starej pozycji; w trybie „Bardzo dokładny” wyniki AI od razu pojawiają się na liście.
+- Historia i pamięć AI: nazwa pliku w złym kodowaniu (np. stary cp1250) nie wywala już zapisu po wykonanym usunięciu.
+- AI w tle: gdy serwer nie odpowiada na żadne zapytanie, zadanie kończy się błędem zamiast „zakończone”; błąd 403 ma czytelny komunikat.
+- Rozpoznawanie działającego programu po obciętej nazwie procesu jest ostrożniejsze (bez fałszywych ostrzeżeń).
+- Nie uruchamiane jeszcze na prawdziwym Windows.
+
+## 2.23.7 - Naprawa regresji z 2.23.6 i poprawki okna
+
+- Naprawa: kontrola „plik zmienił się od skanu” porównywała rozmiar logiczny z zajętym na dysku i odrzucała prawie każdy plik z Polecanych; teraz akceptuje oba.
+- Naprawa: „Przywróć z kosza” zawsze kończyło się błędem (odczyt punktów montowania).
+- Cache Poetry (`virtualenvs`) jest „Do przejrzenia”, a nie „Bezpieczne” (zdublowana reguła).
+- `clean --older-than`: bardzo duży katalog traktowany jest jako świeży (nie czyścimy), zamiast zawyżać wiek.
+- Okno: usunięte lub pominięte (wyłączona reguła, „Nie proponuj więcej”) propozycje nie zostają „duchem” zaznaczonym na liście i w sumach, także po czyszczeniu; po błędzie analizy znika pasek postępu; „Zostaw”/„Zaznacz” z panelu mają pierwszeństwo przed oceną AI nawet bez zmiany stanu pola.
+- AI: błędny klucz API (401/403) nie jest ponawiany (wcześniej ocena wisiała ok. 8 minut); urwana odpowiedź modelu zachowuje kompletne wpisy; filtr zagnieżdżonych pozycji i „Nie proponuj więcej” działają też ze ścieżkami Windows; pamięć AI ustawiona na 0 dni nie nadpisuje pliku pustym; raport nie odsyła pustych opisów do niezwiązanych pozycji.
+- Nie uruchamiane jeszcze na prawdziwym Windows.
+
+## 2.23.6 - Ochrona stref „Nie ruszaj” i kontrola przed usunięciem
+
+- Ogólne reguły po nazwie (`node_modules`, `.venv`, `__pycache__`) nie zdejmują już ochrony ze stref „Nie ruszaj” (`~/.vscode`, `~/.mozilla`, `~/.ssh`...).
+- Przed usunięciem propozycji z analizy program sprawdza, czy plik nadal istnieje i ma ten sam rozmiar co przy skanie; zmieniony jest pomijany.
+- Ochrona „Nie ruszaj” działa też, gdy katalog domowy jest dowiązaniem na inny dysk.
+- `~/.cache`: rclone, JetBrains, Poetry, Borg, KeePassXC i Evolution są „Do przejrzenia” (nie zaznaczane automatycznie); rozpoznawanie działającego programu radzi sobie z obciętą nazwą procesu (`chromium-browse`).
+- Przyciski „Zaznacz”/„Zostaw” w panelu szczegółów odświeżają pola wyboru we wszystkich zakładkach.
+- `config set`/`config import` zgłaszają błąd, gdy zapis się nie udał.
+- „Przywróć z kosza” szuka też w koszu zewnętrznych dysków i uwzględnia `XDG_DATA_HOME`.
+- Windows: zadanie harmonogramu uruchamiane ze źródeł Pythona podaje ścieżkę pakietu.
+- README zgodne z kodem (usuwanie, harmonogram, artefakty CI, motywy).
+- Nie zrobione: podgląd filmów/PDF i skan dysków sieciowych nadal w wątku okna (możliwe krótkie zamrożenie); `_guard` bez `try/finally`.
+- Nie uruchamiane jeszcze na prawdziwym Windows.
+
 ## 2.23.5 - Poprawki po pełnym audycie
 
 - Czyszczenie starych logów administratora działało zawsze błędem (`find -delete` z `-prune`) i psuło cały skrypt roota; naprawione.

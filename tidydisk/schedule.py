@@ -134,7 +134,12 @@ def win_command() -> str:
         return f'"{gui if gui.exists() else sys.executable}"'
     exe = Path(sys.executable)
     pyw = exe.with_name("pythonw.exe")
-    return f'"{pyw if pyw.exists() else exe}" -m tidydisk'
+    py = pyw if pyw.exists() else exe
+    root = Path(__file__).resolve().parent.parent
+    if not any(p in ("site-packages", "dist-packages") for p in root.parts) and "'" not in str(root):
+        # uruchomienie ze zrodel: Harmonogram startuje w innym katalogu i nie zna PYTHONPATH, wiec podajemy sciezke pakietu
+        return f'"{py}" -c "import sys;sys.path.insert(0,r\'{root}\');from tidydisk.__main__ import main;main()"'
+    return f'"{py}" -m tidydisk'
 
 
 def win_task_args(every: str, at: str, min_free_gb: int, min_reclaim_gb: int, command: str | None = None, auto_clean: bool = False) -> list:

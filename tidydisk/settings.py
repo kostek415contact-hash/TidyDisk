@@ -8,6 +8,8 @@ from __future__ import annotations
 import json
 import math
 import os
+import secrets
+import threading
 import urllib.parse
 
 from . import osal, rules
@@ -147,7 +149,7 @@ def sanitize(data) -> dict:
 
 
 def path() -> str:
-    return os.path.expanduser(os.environ.get("FC_CONFIG") or FILE)  # FC_CONFIG / --config: inny plik ustawien
+    return os.path.abspath(os.path.expanduser(os.environ.get("FC_CONFIG") or FILE))  # FC_CONFIG / --config: inny plik ustawien
 
 
 def trustworthy() -> bool:
@@ -159,9 +161,12 @@ def trustworthy() -> bool:
     try:
         with open(p, encoding="utf-8") as f:
             raw = json.load(f)
-    except (OSError, ValueError):
+    except (OSError, ValueError, RecursionError):
         return False
-    return isinstance(raw, dict) and isinstance(raw.get("protected_paths", []), list)
+    if not (isinstance(raw, dict) and isinstance(raw.get("protected_paths", []), list)):
+        return False
+    wanted = [x for x in raw.get("protected_paths", []) if isinstance(x, str) and x.strip()]
+    return all(_clean("protected_paths", [x]) for x in wanted)  # wpis bez sciezki bezwzglednej bylby po cichu pominiety
 
 
 def load(env: bool = True) -> dict:
@@ -172,7 +177,7 @@ def load(env: bool = True) -> dict:
         try:
             with open(p, encoding="utf-8") as f:
                 raw = json.load(f)
-        except (OSError, ValueError):
+        except (OSError, ValueError, RecursionError):
             continue
         if not isinstance(raw, dict):
             continue
@@ -206,19 +211,22 @@ def save(cfg: dict) -> bool:
                 os.chmod(d, 0o700)
             except OSError:
                 pass
-        tmp = p + ".tmp"
-        try:
-            os.unlink(tmp)  # stary plik tymczasowy (moze miec inne prawa albo byc symlinkiem)
-        except OSError:
-            pass
+        tmp = f"{p}.tmp{os.getpid()}.{threading.get_ident()}.{secrets.token_hex(3)}"  # unikalny, nie kasujemy cudzego
         fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL | osal.O_NOFOLLOW | osal.O_BINARY, 0o600)
-        with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as f:
-            if hasattr(os, "fchmod"):
-                os.fchmod(f.fileno(), 0o600)
-            json.dump(sanitize(cfg), f, ensure_ascii=False, indent=2)
-            f.flush()
-            os.fsync(f.fileno())
-        os.replace(tmp, p)
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as f:
+                if hasattr(os, "fchmod"):
+                    os.fchmod(f.fileno(), 0o600)
+                json.dump(sanitize(cfg), f, ensure_ascii=True, indent=2)
+                f.flush()
+                os.fsync(f.fileno())
+            os.replace(tmp, p)
+        except BaseException:
+            try:
+                os.unlink(tmp)
+            except OSError:
+                pass
+            raise
         return True
     except OSError:
         return False

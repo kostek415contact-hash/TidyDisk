@@ -1328,6 +1328,7 @@ class CleanupPage(QWidget):
         cat.entries.append(e)
         self._adv_child(top, e, max(e.size, 1))
         top.setText(1, fmt_size(sum(x.size for x in cat.entries)))
+        self._show_tab(self.tabs.currentIndex() if hasattr(self, "tabs") else self.TAB_ADVICE)  # w trybie "tylko AI" lista byla pusta i pokazywala komunikat
 
     def set_advice(self, advice: list, notes=()) -> None:
         """Buduje zakladke 'Polecane' z propozycji algorytmu (lista z scanner.ScanResult.advice)."""
@@ -1339,9 +1340,6 @@ class CleanupPage(QWidget):
             advice = [x for x in self.ai_extra.values() if os.path.lexists(x[1])]  # tylko AI: to, co wskazal model
         else:
             advice = list(advice) + [x for x in self.ai_extra.values() if x[1] not in {a[1] for a in advice} and os.path.lexists(x[1])]
-        fresh = {a[1] for a in advice}
-        for p in [p for p, old in self.file_entries.items() if getattr(old, "rule", "") == "analiza" and p not in fresh]:
-            del self.file_entries[p]  # pozycja z poprzedniej analizy, ktorej juz nie ma (np. usunieta) - bez "ducha" na liscie
         for a in advice:
             if self.learner.is_ignored(a[1]):
                 continue
@@ -1367,6 +1365,9 @@ class CleanupPage(QWidget):
                 e.checked, e.touched = prev.checked, True
             self.file_entries[e.paths[0]] = e
             by_group[advice_group(a)].append(e)
+        shown = {e.paths[0] for lst in by_group.values() for e in lst}
+        for p in [p for p, old in self.file_entries.items() if getattr(old, "rule", "") == "analiza" and p not in shown]:
+            del self.file_entries[p]  # pozycja z poprzedniej analizy, ktorej nie ma na liscie (usunieta, wylaczona regula, zignorowana) - bez "ducha"
         self.adv_cats = [
             core.Category("adv_" + k, t, d, False, sorted(by_group[k], key=lambda x: (-x.score, -x.size)))
             for k, t, d in ADVICE_GROUPS if by_group[k]
@@ -1382,6 +1383,8 @@ class CleanupPage(QWidget):
             self._sync_parent(top)
             top.setExpanded(True)
         self._rebind_file_rows()
+        self._cur_entry = None  # stary wpis z poprzedniej analizy nie moze zostac celem przyciskow panelu
+        self.btn_ai.setEnabled(False)
         self._guard = False
         n = sum(len(c.entries) for c in self.adv_cats)
         total = sum(e.size for c in self.adv_cats for e in c.entries)
@@ -1520,7 +1523,13 @@ class CleanupPage(QWidget):
         for c in self.adv_cats:
             if e in c.entries:
                 c.entries.remove(e)
-        item.setHidden(True)
+        parent = item.parent() if hasattr(item, "parent") else None
+        self.adv_items.pop(e.paths[0], None)
+        if parent is not None:  # naprawde usuwamy wiersz (samo ukrycie wracalo po zmianie filtra)
+            parent.removeChild(item)
+            self._sync_parent(parent)
+        else:
+            item.setHidden(True)
         self.file_entries.pop(e.paths[0], None)
         self._refresh_tab_titles()
         self.update_summary()
@@ -1534,7 +1543,13 @@ class CleanupPage(QWidget):
         for c in self.adv_cats:
             if e in c.entries:
                 c.entries.remove(e)
-        item.setHidden(True)
+        parent = item.parent() if hasattr(item, "parent") else None
+        self.adv_items.pop(e.paths[0], None)
+        if parent is not None:  # naprawde usuwamy wiersz (samo ukrycie wracalo po zmianie filtra)
+            parent.removeChild(item)
+            self._sync_parent(parent)
+        else:
+            item.setHidden(True)
         self.file_entries.pop(e.paths[0], None)
         self._refresh_tab_titles()
         self.update_summary()
@@ -1696,12 +1711,18 @@ class CleanupPage(QWidget):
             parent = item.parent()
             if parent is None:
                 state = item.checkState(0)
+                kids = list(self._children(item))
+                vis = [ch for ch in kids if not self._row_hidden(ch)]
+                if (state == Qt.CheckState.Checked and len(vis) < len(kids)
+                        and all(ch.checkState(0) == Qt.CheckState.Checked for ch in vis)):
+                    state = Qt.CheckState.Unchecked  # Qt z "czesciowo" przechodzi w "zaznaczone": gdy widoczne juz sa zaznaczone, klik ma odznaczyc
                 if state != Qt.CheckState.PartiallyChecked:
-                    for ch in self._children(item):
-                        if ch.isHidden():  # filtr (szukaj/dysk/rodzaj/widok): niewidocznych wierszy nie ruszamy
+                    for ch in kids:
+                        if self._row_hidden(ch):  # filtr (szukaj/dysk/rodzaj/widok): niewidocznych wierszy nie ruszamy
                             continue
                         ch.setCheckState(0, state)
                         ch.data(0, ENTRY_ROLE).checked = state == Qt.CheckState.Checked
+                self._sync_parent(item)  # przy ukrytych dzieciach kategoria moze byc tylko czesciowo zaznaczona
             else:
                 e = item.data(0, ENTRY_ROLE)
                 if e is not None:
@@ -1712,6 +1733,15 @@ class CleanupPage(QWidget):
             self._guard = False
         self.update_summary()
 
+    @staticmethod
+    def _row_hidden(it) -> bool:
+        """Wiersz jest niewidoczny, gdy sam albo ktorys jego przodek jest ukryty (isHidden() w Qt nie dziedziczy)."""
+        while it is not None:
+            if it.isHidden() is True:
+                return True
+            it = it.parent()
+        return False
+
     def select_recommended(self) -> None:
         self._set_all(lambda e: e.suggested)
 
@@ -1720,8 +1750,19 @@ class CleanupPage(QWidget):
 
     def _set_all(self, rule) -> None:
         self._guard = True
+        try:
+            self._set_all_inner(rule)
+        finally:
+            self._guard = False
+        self.update_summary()
+
+    def _set_all_inner(self, rule) -> None:
+        skip: set = set()  # wiersze ukryte filtrem zostaja, jak w on_item_changed
         for _top, ch in self._each_child():
             e = ch.data(0, ENTRY_ROLE)
+            if self._row_hidden(ch):
+                skip.add(id(e))
+                continue
             e.checked = bool(rule(e))
             ch.setCheckState(0, Qt.CheckState.Checked if e.checked else Qt.CheckState.Unchecked)
         for t in (self.adv_tree, self.tree):
@@ -1730,14 +1771,15 @@ class CleanupPage(QWidget):
         for i in range(self.files_tree.topLevelItemCount()):
             for ch in self._walk_files(self.files_tree.topLevelItem(i)):
                 fe = ch.data(0, ENTRY_ROLE)
+                if self._row_hidden(ch):
+                    skip.add(id(fe))
+                    continue
                 if fe.rating != kb.KEEP:
                     fe.checked = bool(rule(fe))
                     ch.setCheckState(0, Qt.CheckState.Checked if fe.checked else Qt.CheckState.Unchecked)
         for fe in self.file_entries.values():
-            if fe.rating != kb.KEEP:
+            if fe.rating != kb.KEEP and id(fe) not in skip:
                 fe.checked = bool(rule(fe))
-        self._guard = False
-        self.update_summary()
 
     def extra_entries(self) -> list:
         """Pliki wybrane recznie (bez tych, ktore sa juz w 'Polecane')."""
@@ -1836,11 +1878,32 @@ class CleanupPage(QWidget):
         if e is None or not e.deletable:
             return
         item = self.adv_items.get(e.paths[0])
+        if item is not None and item.data(0, ENTRY_ROLE) is not e:
+            item = None  # wiersz Polecanych o tej samej sciezce, ale inny wpis (np. z "System i pakiety")
         if item is not None:
+            e.touched = True  # Qt nie zglasza zmiany, gdy stan sie nie zmienia - "z reki" ma pierwszenstwo przed AI mimo to
             item.setCheckState(0, Qt.CheckState.Checked if value else Qt.CheckState.Unchecked)
         else:
             e.checked = value
             e.touched = True
+            self._refresh_checks()  # pokaz stan tez w drzewach, gdzie wiersza nie ma w adv_items (System i pakiety, Wszystkie pliki)
+
+    def _drop_gone_advice(self) -> None:
+        """Po czyszczeniu: usun z Polecanych pozycje, ktorych juz nie ma na dysku (inaczej zostaja zaznaczone i licza sie do sum)."""
+        gone = [p for p, e in self.file_entries.items() if getattr(e, "rule", "") == "analiza" and not os.path.lexists(p)]
+        for p in gone:
+            del self.file_entries[p]
+            item = self.adv_items.pop(p, None)
+            parent = item.parent() if item is not None else None
+            if parent is not None:
+                parent.removeChild(item)
+        if gone:
+            gs = set(gone)
+            for cat in self.adv_cats:
+                cat.entries = [e for e in cat.entries if e.paths[0] not in gs]
+            for k in range(self.adv_tree.topLevelItemCount()):
+                self._sync_parent(self.adv_tree.topLevelItem(k))
+            self._cur_entry = None
             self.update_summary()
 
     def apply_filter(self, text: str) -> None:
@@ -2067,7 +2130,7 @@ class HistoryPage(QWidget):
         self.sched_label = QLabel("")
         self.sched_label.setObjectName("muted")
         self.btn_sched_on = QPushButton("Włącz cotygodniowe powiadomienia")
-        self.btn_sched_on.setToolTip("Timer systemd użytkownika: raz w tygodniu sprawdza dysk i powiadamia, "
+        self.btn_sched_on.setToolTip(("Zadanie Harmonogramu zadań: " if osal.is_windows() else "Timer systemd użytkownika: ") + "raz w tygodniu sprawdza dysk i powiadamia, "
                                      "gdy jest mało miejsca albo dużo do bezpiecznego odzyskania. Nic nie usuwa.")
         self.btn_sched_on.clicked.connect(self.sched_enable)
         self.btn_sched_off = QPushButton("Wyłącz")
@@ -2089,7 +2152,7 @@ class HistoryPage(QWidget):
         self.ai_at.setFixedWidth(70)
         self.ai_at.setAccessibleName("Godzina oceny AI w tle (GG:MM)")
         self.btn_ai_on = QPushButton("Włącz ocenę AI w tle")
-        self.btn_ai_on.setToolTip("Timer systemd użytkownika: o wybranej porze skanuje dysk i ocenia go przez AI "
+        self.btn_ai_on.setToolTip(("Zadanie Harmonogramu zadań: " if osal.is_windows() else "Timer systemd użytkownika: ") + "o wybranej porze skanuje dysk i ocenia go przez AI "
                                   "(najniższy priorytet), potem powiadamia. Niczego nie usuwa.")
         self.btn_ai_on.clicked.connect(self.ai_sched_enable)
         self.btn_ai_off = QPushButton("Wyłącz")
@@ -2543,7 +2606,10 @@ class MainWindow(QMainWindow):
         self.scanner.start()
 
     def on_scan_done(self, cats: list) -> None:
+        why = self.clean_page.scan_status.text() if not cats else ""
         self.clean_page.populate(cats)
+        if why.startswith("Błąd"):
+            self.clean_page.show_banner(why, "warn")  # inaczej uzytkownik widzi pusta liste bez przyczyny
         self.set_busy(False)
         if self._reanalyze and settings.load()["auto_analysis"]:
             self.start_analysis()
@@ -2746,6 +2812,8 @@ class MainWindow(QMainWindow):
 
     def on_analysis_failed(self, msg: str) -> None:
         self.analysis_busy = False
+        if not self.triage_busy:
+            self.set_global_progress(-1)
         self.clean_page.set_analysis_status(msg)
 
     # -- skan calego dysku
@@ -2823,8 +2891,8 @@ class MainWindow(QMainWindow):
             return
         try:
             enc = "utf-8-sig" if fmt == "csv" else "utf-8"
-            Path(path).write_text(text, encoding=enc)
-        except OSError as ex:
+            Path(path).write_text(text, encoding=enc, errors="replace")
+        except (OSError, UnicodeError) as ex:
             QMessageBox.warning(self, "TidyDisk", f"Nie udało się zapisać raportu:\n{ex}")
             return
         self.clean_page.show_banner(
@@ -2965,6 +3033,7 @@ class MainWindow(QMainWindow):
             except OSError:
                 pass
             banner = (text, "ok")
+        self.clean_page._drop_gone_advice()
         self._reanalyze = True
         if self.analysis_busy and self.analyzer is not None:
             self.analyzer.cancel()

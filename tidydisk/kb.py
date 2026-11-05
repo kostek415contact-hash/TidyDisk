@@ -95,7 +95,6 @@ _RULES: list = [
     ("~/.cache/torch", REVIEW, "Modele PyTorch",
      "Pobrane wagi modeli.", "Pobiorą się ponownie, ale mogą być duże."),
     ("~/.cache/pre-commit", SAFE, "Cache pre-commit", "Pobrane środowiska narzędzi pre-commit.", "pre-commit zbuduje je od nowa."),
-    ("~/.cache/pypoetry", SAFE, "Cache Poetry", "Pobrane pakiety Pythona (Poetry).", "Poetry pobierze je ponownie."),
     ("~/.cache/pnpm", SAFE, "Cache pnpm", "Pobrane pakiety JavaScript (pnpm).", "pnpm pobierze je ponownie."),
     ("~/.cache/bottles", SAFE, "Cache Bottles", "Dane tymczasowe programu Bottles (bez butelek z programami).", "Bottles odtworzy je sam."),
     ("~/.cache/zig", SAFE, "Cache kompilatora Zig", "Pośrednie wyniki kompilacji.", "Kompilator zbuduje je od nowa."),
@@ -107,6 +106,14 @@ _RULES: list = [
     ("~/.arduino15/staging", REVIEW, "Pobrane pakiety Arduino", "Archiwa płytek i bibliotek po instalacji.", "Można pobrać ponownie z menedżera płytek."),
     ("~/.cache/baloo", SAFE, "Indeks wyszukiwania (Baloo)",
      "Indeks plików do szybkiego wyszukiwania w KDE.", "Zostanie zbudowany od nowa."),
+    ("~/.cache/rclone", REVIEW, "Cache rclone", "Pamięć podręczna rclone; przy trybie vfs może trzymać jeszcze niewysłane zmiany.",
+     "Sprawdź, czy rclone nie ma niewysłanych plików, zanim to usuniesz."),
+    ("~/.cache/JetBrains", REVIEW, "Cache JetBrains", "Indeksy IDE; w środku bywa lokalna historia plików (LocalHistory).",
+     "Lokalnej historii nie odtworzysz - przejrzyj zawartość."),
+    ("~/.cache/pypoetry", REVIEW, "Cache Poetry", "Pobrane pakiety i środowiska wirtualne Poetry.", "Środowiska odtworzysz, ale to potrwa."),
+    ("~/.cache/borg", REVIEW, "Cache BorgBackup", "Indeks kopii zapasowych Borg.", "Odbudowa indeksu bywa bardzo wolna."),
+    ("~/.cache/keepassxc", REVIEW, "Cache KeePassXC", "Pliki pomocnicze menedżera haseł.", "Lepiej nie ruszać bez potrzeby."),
+    ("~/.cache/evolution", REVIEW, "Cache Evolution", "Lokalna kopia poczty i kalendarza Evolution.", "Może zawierać niezsynchronizowane dane."),
     ("~/.cache/*", SAFE, "Cache aplikacji",
      "Dane tymczasowe zapisane przez program, żeby działał szybciej.",
      "To z definicji kopia, którą program odtworzy. Zamknij program przed czyszczeniem."),
@@ -297,6 +304,10 @@ def _glob_to_regex(pattern: str) -> re.Pattern:
     return re.compile("".join(out) + r"\Z", re.S)
 
 
+# katalogi projektow: ogolne reguly po nazwie, ktore nie moga zdjac ochrony ze strefy "Nie ruszaj" (np. ~/.vscode/.../node_modules)
+_PROJECT_DIRS = ("**/node_modules", "**/__pycache__", "**/.venv")
+
+
 class KnowledgeBase:
     """Wyszukiwanie oceny: najblizszy przodek ze zdefiniowana regula wygrywa."""
 
@@ -351,6 +362,8 @@ class KnowledgeBase:
         """Ocena katalogu przy przejsciu w dol drzewa (dziedziczenie po rodzicu)."""
         rule = self.match_here(path)
         if rule is not None:
+            if inherited is not None and inherited.rating == KEEP and rule[1] != KEEP and rule[0] in _PROJECT_DIRS:
+                return inherited  # ogolna regula po nazwie (node_modules, .venv...) nie zdejmuje ochrony ze strefy 'Nie ruszaj'
             return self._verdict(rule)
         if inherited is not None:
             return inherited
@@ -374,13 +387,19 @@ class KnowledgeBase:
         """Ocena dowolnej sciezki: najblizszy przodek (lacznie z nia sama) z regula."""
         p = self._norm(path) if self.fold else (path.rstrip("/") or "/")
         cur = p
+        generic = None  # najblizsza ogolna regula po nazwie - ustepuje ochronie ze strefy 'Nie ruszaj' wyzej
         while True:
             rule = self.match_here(cur)
             if rule is not None:
-                return self._verdict(rule)
+                if rule[0] in _PROJECT_DIRS and rule[1] != KEEP:
+                    generic = generic or rule
+                else:
+                    return self._verdict(rule) if (generic is None or rule[1] == KEEP) else self._verdict(generic)
             if cur == self.home or cur == "/" or "/" not in cur:
                 break
             cur = cur.rsplit("/", 1)[0] or "/"
+        if generic is not None:
+            return self._verdict(generic)
         return self.default(p)
 
     def classify_file(self, path: str, dir_verdict: Verdict | None = None) -> Verdict:

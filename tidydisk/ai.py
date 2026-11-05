@@ -10,6 +10,7 @@ systemowe) i okno potwierdzenia dzialaja niezaleznie od niego.
 """
 from __future__ import annotations
 
+import http.client
 import json
 import secrets
 import os
@@ -151,11 +152,31 @@ def payload_for(model: str, content: str, max_tokens: int) -> dict:
     }
 
 
+def _as_idx(v) -> int:
+    """Numer pozycji z odpowiedzi AI: tylko calkowity (nie bool, nie 1.9, nie tekst z liczba dziesietna)."""
+    if isinstance(v, bool) or v is None:
+        raise ValueError("id")
+    if isinstance(v, int):
+        return v
+    if isinstance(v, float) and v.is_integer():
+        return int(v)
+    if isinstance(v, str) and v.strip().isascii() and v.strip().isdigit():
+        return int(v.strip())
+    raise ValueError("id")
+
+
 def _parse_reply(raw: str) -> dict:
     """Odpowiedz strumieniowa (SSE: linie 'data: {...}') albo zwykly JSON -> {'choices':[{'message':{'content':..}}]}."""
     raw = raw.strip()
     if raw.startswith("{"):
-        return json.loads(raw)
+        try:
+            obj = json.loads(raw)
+        except ValueError:
+            obj = None
+        if isinstance(obj, dict):
+            return obj
+        if obj is None and not any(ln.strip().startswith("data:") for ln in raw.splitlines()):
+            raise ValueError("odpowiedź serwera nie jest poprawnym JSON-em")
     parts = []
     for line in raw.splitlines():
         line = line.strip()
@@ -168,9 +189,15 @@ def _parse_reply(raw: str) -> dict:
             obj = json.loads(chunk)
         except ValueError:
             continue
+        if not isinstance(obj, dict):
+            continue
         for ch in obj.get("choices") or []:
-            piece = (ch.get("delta") or {}).get("content") or (ch.get("message") or {}).get("content")
-            if piece:
+            if not isinstance(ch, dict):
+                continue
+            d = ch.get("delta") if isinstance(ch.get("delta"), dict) else {}
+            m = ch.get("message") if isinstance(ch.get("message"), dict) else {}
+            piece = d.get("content") or m.get("content")
+            if piece and isinstance(piece, str):
                 parts.append(piece)
     return {"choices": [{"message": {"content": "".join(parts)}}]}
 
@@ -216,6 +243,8 @@ def _chat(payload: dict, timeout: float, host: str) -> dict:
             last = f"HTTP {ex.code}: {body or ex.reason}"
             if ex.code in (400, 413) and re.search(r"context|too long|exceed|n_ctx|too many tokens|maximum.*tokens", body, re.I):
                 raise AIContextError(last) from ex  # kolejne warianty zapytania nic nie pomoga: trzeba mniejszej paczki
+            if ex.code in (401, 403):
+                raise PermissionError(last) from ex  # zly klucz API: ponawianie nic nie da (jak w list_models)
             if ex.code != 400 or "no model loaded" in body.lower():
                 raise AIError(last) from ex
     raise AIError(last or "serwer odrzucił zapytanie")
@@ -225,7 +254,7 @@ def list_models(host: str = "", timeout: float = 2.0):
     """Nazwy modeli serwera albo None, gdy nie odpowiada."""
     try:
         data = _request("/v1/models", None, timeout, host or HOST or CANDIDATES[0])
-        rows = [m for m in data.get("data", []) if isinstance(m, dict) and m.get("id")]
+        rows = [m for m in (data.get("data", []) if isinstance(data, dict) else []) if isinstance(m, dict) and isinstance(m.get("id"), str) and m.get("id")]
         _loaded_first[0] = any(m.get("loaded") for m in rows)
         rows.sort(key=lambda m: not m.get("loaded"))  # wczytane do pamieci (Unsloth: pole 'loaded') najpierw
         return [m["id"] for m in rows]
@@ -233,7 +262,7 @@ def list_models(host: str = "", timeout: float = 2.0):
         if ex.code in (401, 403):
             raise PermissionError("serwer wymaga klucza API (Unsloth Studio: Settings → API, klucz sk-unsloth-…)")
         return None
-    except (OSError, ValueError, urllib.error.URLError):
+    except (OSError, ValueError, AttributeError, TypeError, http.client.HTTPException):
         return None
 
 
@@ -402,6 +431,22 @@ def _extract_json(text: str):
     return None
 
 
+def _salvage(text: str) -> list:
+    """Z urwanej odpowiedzi (limit tokenow) wyciaga kompletne obiekty z polem id - zeby jedna uciety wpis nie gubil calej paczki."""
+    dec, out, i = json.JSONDecoder(), [], text.find("{")
+    while i >= 0:
+        try:
+            data, end = dec.raw_decode(text[i:])
+            if isinstance(data, dict) and "id" in data:
+                out.append(data)
+            i = text.find("{", i + end)
+            continue
+        except ValueError:
+            pass
+        i = text.find("{", i + 1)
+    return out
+
+
 def ask(model: str, meta: dict, host: str = "", timeout: float = 600.0) -> dict:
     """Pytanie do modelu. Zwraca {'co_to_jest','werdykt','ryzyko','uzasadnienie','model'} (bezpieczne teksty)."""
     payload = payload_for(model, prompt_text("ask") + json.dumps(meta, ensure_ascii=False), 500)
@@ -510,7 +555,7 @@ def make_pool(advice: list, nodes: dict, top_files: list, home: str, limit: int 
     for d in survey:
         if len(out) >= limit:
             break
-        if d["path"] in taken or (not pure and any(d["path"].startswith(t + "/") or t.startswith(d["path"] + "/") for t in taken)):
+        if d["path"] in taken or (not pure and any(_under(d["path"], t) or _under(t, d["path"]) for t in taken)):
             continue
         out.append(d)
         taken.add(d["path"])
@@ -568,12 +613,13 @@ def triage_batch(model: str, batch: list, host: str, home: str, timeout: float =
     out = _chat(payload, timeout, host)
     text = ((out.get("choices") or [{}])[0].get("message") or {}).get("content") or ""
     data = _extract_json(text) or {}
+    items = data.get("oceny") if isinstance(data.get("oceny"), list) else (_salvage(text) if "oceny" not in data else [])
     res: dict = {}
-    for o in data.get("oceny", []) if isinstance(data.get("oceny"), list) else []:
+    for o in items:
         if not isinstance(o, dict):
             continue
         try:
-            idx = int(o.get("id"))
+            idx = _as_idx(o.get("id"))
         except (TypeError, ValueError):
             continue
         verdict = str(o.get("werdykt", "")).strip().lower()
@@ -606,7 +652,7 @@ def friendly_error(msg: str) -> str:
                 "(Chat → Select model) albo (2) włącz Settings → API → Model auto-switch i wpisz pełną nazwę modelu "
                 "w Ustawienia → AI (np. unsloth/gemma-4-26B-A4B-it-qat-GGUF:UD-Q4_K_XL) - serwer wczyta go "
                 "przy pierwszym zapytaniu, co może potrwać kilka minut.")
-    if re.search(r"\b401\b", low) or "unauthorized" in low or "api key" in low:
+    if re.search(r"\bhttp 40[13]\b", low) or "unauthorized" in low or "api key" in low:
         return "Serwer odrzucił klucz API - utwórz nowy w Unsloth Studio (Settings → API) i wpisz go w Ustawieniach AI."
     if "tylko z serwerem lokalnym" in low:
         return ("Adres serwera AI nie jest lokalny, więc go nie użyję (dane nie wychodzą z komputera). "
@@ -618,7 +664,7 @@ def friendly_error(msg: str) -> str:
                 "a w Ustawienia → AI zwiększ limit czasu lub zmniejsz liczbę pozycji w zapytaniu.")
     if re.search(r"\b404\b", low) or "not found" in low:
         return "Serwer nie zna takiego modelu lub adresu. Sprawdź nazwę modelu (przycisk „Wybierz model”) w Ustawienia → AI."
-    if "out of memory" in low or re.search(r"\boom\b", low) or "cuda" in low:
+    if "out of memory" in low or re.search(r"\boom\b", low) or ("cuda" in low and "memory" in low):
         return "Serwerowi zabrakło pamięci GPU/RAM. Zamknij inne programy korzystające z karty albo wczytaj mniejszy model."
     return msg
 
@@ -819,7 +865,7 @@ def _ask_folders(model: str, batch: list, host: str, home: str, cfg: dict) -> di
                              .get("content") or "") or {}
         for o in data.get("oceny", []) if isinstance(data.get("oceny"), list) else []:
             try:
-                idx = int(o.get("id"))
+                idx = _as_idx(o.get("id"))
             except (TypeError, ValueError, AttributeError):
                 continue
             w = str(o.get("w", "")).strip().lower()
@@ -1006,6 +1052,7 @@ def _cascade(model, advice, nodes, top_files, host, home, roots, skip, on_batch,
     _wh = {p for p, v in verdicts.items() if v[0] == "whole"} if cfg.get("ai_skip_inside", True) else set()
     stats["bez_odpowiedzi"] = sum(1 for d in folders if d["path"] not in verdicts
                                   and not any(a in _wh for a in _ancestors(d["path"])))
+    stats["bez_odp_foldery"] = stats["bez_odpowiedzi"]
     whole = [p for p, v in verdicts.items() if v[0] == "whole"]
     ws = set(whole)
     whole = [p for p in whole if not any(a in ws for a in _ancestors(p))]  # tylko najwyzszy 'whole'
@@ -1072,6 +1119,9 @@ def _cascade(model, advice, nodes, top_files, host, home, roots, skip, on_batch,
         else:
             gots = [_retry(lambda b=b: halve(call, b, True), cancel) for _i, b in group]
         for (i, batch), got in zip(group, gots):
+            if not got:
+                stats["bez_odpowiedzi"] = stats.get("bez_odpowiedzi", 0) + len(batch)
+                stats["bez_odp_pliki"] = stats.get("bez_odp_pliki", 0) + len(batch)
             done += len(got)
             res = {batch[k]["path"]: v for k, v in got.items()}
             for k, v in got.items():
