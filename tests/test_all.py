@@ -2667,5 +2667,22 @@ try:
 except _ap9.ArgumentTypeError:
     check(True, "cli: --min-size nan odrzucone")
 check(core.bad_path("/h/\ud800x"), "core: pojedynczy surogat w sciezce jest odrzucany")
+
+# --- serwer AI w sieci prywatnej (opcja ai_lan)
+check(settings.local_url("http://127.0.0.1:8888") and not settings.local_url("http://192.168.1.17:8888"), "settings: siec prywatna domyslnie zablokowana")
+check(all(settings.local_url(u, True) for u in ("http://192.168.1.17:8888", "http://10.0.0.5:1234", "https://172.20.1.2", "http://[fd00::1]:80", "http://localhost:1")), "settings: ai_lan dopuszcza adresy prywatne")
+check(not any(settings.local_url(u, True) for u in ("http://8.8.8.8:80", "http://172.32.0.1", "http://192.168.1.17@evil.pl", "http://u:p@192.168.1.17", "http://serwer.local:80", "http://0.0.0.0:80", "http://169.254.1.1", "ftp://192.168.1.17", "http://192.168.1.17.evil.pl")), "settings: ai_lan nie dopuszcza adresow publicznych, nazw ani sztuczek")
+check(settings.sanitize({"ai_url": "http://192.168.1.17:8888"})["ai_url"] == "", "settings: adres z LAN bez zgody jest odrzucany")
+check(settings.sanitize({"ai_url": "http://192.168.1.17:8888", "ai_lan": True})["ai_url"] == "http://192.168.1.17:8888", "settings: adres z LAN ze zgoda jest zachowany")
+check(settings.sanitize({"ai_url": "http://8.8.8.8:80", "ai_lan": True})["ai_url"] == "", "settings: adres publiczny odrzucany tez przy ai_lan")
+_ilp = TMP / "lan_cfg.json"
+os.environ["FC_CONFIG"] = str(_ilp)
+try:
+    check(settings.update({"ai_lan": True, "ai_url": "http://192.168.1.17:8888"}) is not None and ai._local("http://192.168.1.17:8888"), "ai: _local przyjmuje LAN po wlaczeniu opcji")
+    check(settings.import_text(json.dumps({"ai_lan": False}))["ai_lan"] is True, "settings: import pliku nie wylacza/wlacza zgody na siec")
+    settings.update({"ai_lan": False})
+    check(not ai._local("http://192.168.1.17:8888"), "ai: _local odrzuca LAN po wylaczeniu opcji")
+finally:
+    del os.environ["FC_CONFIG"]
 print("WSZYSTKO OK" if not fails else f"BLEDY: {len(fails)}")
 sys.exit(1 if fails else 0)

@@ -60,7 +60,8 @@ TABS = [
         ("scan_parallel", "Miejsca skanowane naraz", "Dom i dyski danych są przeglądane równolegle. 1 = po kolei (domyślnie). Więcej pomaga głównie, gdy dom i dyski danych są na osobnych, wolnych dyskach.", "int", None),
     ]),
     ("AI", [
-        ("ai_url", "Adres serwera", "Puste = wykryj sam. Tylko 127.0.0.1 / localhost.", "str", None),
+        ("ai_url", "Adres serwera", "Puste = wykryj sam. 127.0.0.1 / localhost albo (po włączeniu opcji niżej) adres IP z sieci prywatnej, np. http://192.168.1.17:8888.", "str", None),
+        ("ai_lan", "Serwer AI w sieci lokalnej", "Zezwala na adres IP z sieci prywatnej (192.168.x.x, 10.x.x.x, 172.16-31.x.x). Nazwy plików, ścieżki i krótkie podglądy zawartości (oraz klucz API) pójdą wtedy do tamtego komputera zwykłym, nieszyfrowanym HTTP - włącz tylko we własnej, zaufanej sieci.", "bool", None),
         ("ai_key", "Klucz API", "Unsloth Studio: Settings → API (sk-unsloth-…).", "secret", None),
         ("ai_model", "Model", "Puste = pierwszy wczytany na serwerze.", "str", None),
         ("ai_timeout_s", "Limit czasu zapytania (s)", "Duży model na małej karcie może myśleć długo.", "int", None),
@@ -376,8 +377,8 @@ class SettingsPage(QWidget):
         self.load(cfg)  # pokaz to, co naprawde zapisano (po poprawkach zakresow)
         self.status.setText("Zapisano. Zmiany AI i ochrony działają od razu; zmiany algorytmu - od następnej analizy.")
         if typed and not cfg.get("ai_url"):
-            self.status.setText("Zapisano, ale adres AI pominąłem: musi być lokalny (http://127.0.0.1:PORT lub "
-                                "http://localhost:PORT) - dane nie wychodzą z komputera.")
+            self.status.setText("Zapisano, ale adres AI pominąłem: musi być lokalny (http://127.0.0.1:PORT lub http://localhost:PORT) "
+                                "albo - po włączeniu „Serwer AI w sieci lokalnej” - adres IP z sieci prywatnej (np. 192.168.1.17).")
         self.saved.emit(cfg)
         return cfg
 

@@ -1,5 +1,12 @@
 # Historia zmian
 
+## 2.23.12 - Serwer AI na innym komputerze w sieci
+
+- Nowa opcja **„Serwer AI w sieci lokalnej”** (Ustawienia → AI, `config set ai_lan true`), domyślnie wyłączona. Po włączeniu program przyjmuje adres IP z sieci prywatnej (192.168.x.x, 10.x.x.x, 172.16–31.x.x, fc00::/7), np. `http://192.168.1.17:8888`. Adresy publiczne, nazwy hostów, adresy z `użytkownik@` i przekierowania nadal są odrzucane; zapytania nadal idą bez proxy ze środowiska.
+- Uwaga: nazwy plików, ścieżki, krótkie podglądy zawartości i klucz API idą wtedy do tamtego komputera nieszyfrowanym HTTP. Bezpieczniejsza alternatywa: tunel SSH i adres `127.0.0.1` (opis w README).
+- Zgodę na sieć zmienia tylko użytkownik w Ustawieniach lub `config set`; importowany plik ustawień jej nie przenosi.
+- Nie uruchamiane jeszcze na prawdziwym serwerze AI w sieci.
+
 ## 2.23.11 - Poprawki po kolejnym audycie
 
 - **Naprawa (CLI):** `clean --only games|kernel|packages` (i kategorie Windows) nie kończy się już błędem tylko dlatego, że skan na tym komputerze takiej kategorii nie zwrócił; `config set` nie zgłasza fałszywego błędu przy normalizacji (spacje, `~`, końcowy `/`, duplikaty); `--min-size` i `--older-than` odrzucają `nan`/`inf`; `-q` nie ukrywa już błędów pojedynczych pozycji przy czyszczeniu.

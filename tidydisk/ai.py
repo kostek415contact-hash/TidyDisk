@@ -102,7 +102,7 @@ def save_config(cfg: dict) -> bool:
 
 
 def _local(host: str) -> bool:
-    return settings.local_url(host)
+    return settings.local_url(host, settings.load().get("ai_lan") is True)
 
 
 class _NoRedirect(urllib.request.HTTPRedirectHandler):
@@ -656,7 +656,8 @@ def friendly_error(msg: str) -> str:
         return "Serwer odrzucił klucz API - utwórz nowy w Unsloth Studio (Settings → API) i wpisz go w Ustawieniach AI."
     if "tylko z serwerem lokalnym" in low:
         return ("Adres serwera AI nie jest lokalny, więc go nie użyję (dane nie wychodzą z komputera). "
-                "W Ustawienia → AI wpisz adres z http://127.0.0.1 albo http://localhost, np. http://127.0.0.1:8888.")
+                "Wpisz http://127.0.0.1:PORT albo - dla serwera w sieci prywatnej (192.168.x.x, 10.x.x.x, 172.16-31.x.x) - "
+                "włącz w Ustawienia → AI „Serwer AI w sieci lokalnej”.")
     if "refused" in low or "odmowa" in low:
         return "Nic nie nasłuchuje pod tym adresem. Uruchom Unsloth Studio (albo llama-server) i sprawdź port w Ustawienia → AI."
     if "timed out" in low or "timeout" in low:

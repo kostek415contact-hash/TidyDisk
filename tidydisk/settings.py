@@ -9,6 +9,7 @@ import json
 import math
 import os
 import secrets
+import ipaddress
 import threading
 import urllib.parse
 
@@ -40,6 +41,7 @@ SPEC = {
     "scan_parallel": (1, 1, 4),  # ile miejsc (dom, dyski) skanowac rownolegle (1 = po kolei; pomiar: na goracym cache rownolegle bywa wolniejsze)
     # AI - polaczenie
     "ai_url": ("", None, None),
+    "ai_lan": (False, None, None),  # zezwol na serwer AI w sieci prywatnej (domyslnie tylko ten komputer)
     "ai_key": ("", None, None),
     "ai_model": ("", None, None),
     "ai_timeout_s": (600, 30, 3600),
@@ -80,13 +82,26 @@ RUNTIME: dict = {"search_mode": "assisted", "temperature": 0.1, "protected": [],
 PROMPT_MAX = 8000
 
 
-def local_url(url: str) -> bool:
+_LAN_NETS = tuple(ipaddress.ip_network(n) for n in ("10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "fc00::/7"))
+
+
+def private_ip(host) -> bool:
+    """Adres IP (nie nazwa - nazwy da sie przekierowac przez DNS) z sieci prywatnej RFC 1918 albo ULA IPv6."""
+    try:
+        ip = ipaddress.ip_address(host or "")
+    except ValueError:
+        return False
+    return any(ip.version == n.version and ip in n for n in _LAN_NETS)
+
+
+def local_url(url: str, lan: bool = False) -> bool:
     """Czy adres wskazuje na ten komputer: http(s) + host 127.0.0.1 / localhost / ::1, bez 'uzytkownik:haslo@'
-    (adres w rodzaju http://127.0.0.1:80@obcy.pl prowadzi do obcego hosta)."""
+    (adres w rodzaju http://127.0.0.1:80@obcy.pl prowadzi do obcego hosta). Z lan=True (wlaczone jawnie w ustawieniach)
+    dozwolony jest tez adres IP z sieci prywatnej (192.168.x.x, 10.x.x.x, 172.16-31.x.x); adresy publiczne i nazwy - nigdy."""
     try:
         u = urllib.parse.urlsplit(url)
         return (u.scheme in ("http", "https") and u.username is None and u.password is None
-                and u.hostname in ("127.0.0.1", "localhost", "::1"))
+                and (u.hostname in ("127.0.0.1", "localhost", "::1") or (lan and private_ip(u.hostname))))
     except ValueError:
         return False
 
@@ -124,8 +139,7 @@ def _clean(key: str, value):
     if key == "ai_risk":
         return value if value in RISKS else default
     if key == "ai_url":
-        value = value.strip() if isinstance(value, str) else ""
-        return value if (not value or local_url(value)) else ""  # nielokalny adres = brak (wykrywanie samo)
+        return value.strip() if isinstance(value, str) else ""  # czy adres jest dozwolony, rozstrzyga sanitize (zalezy od ai_lan)
     if key == "theme":
         return value if value in ("fedora", "modern", "modern-light", "system") else default
     if key == "language":
@@ -143,6 +157,8 @@ def sanitize(data) -> dict:
         for k in SPEC:
             if k in data:
                 out[k] = _clean(k, data[k])
+    if out["ai_url"] and not local_url(out["ai_url"], out["ai_lan"] is True):
+        out["ai_url"] = ""  # nielokalny adres = brak (wykrywanie samo)
     if out["auto_score"] < out["min_score"]:  # prog zaznaczania nie moze byc nizszy niz prog propozycji
         out["auto_score"] = out["min_score"]
     return out
@@ -194,7 +210,7 @@ def load(env: bool = True) -> dict:
     for env, k in (("FC_AI_URL", "ai_url"), ("FC_AI_KEY", "ai_key"), ("FC_AI_MODEL", "ai_model")):
         if os.environ.get(env):
             val = os.environ[env].strip()
-            if k != "ai_url" or local_url(val):
+            if k != "ai_url" or local_url(val, cfg.get("ai_lan") is True):
                 cfg[k] = val
     return cfg
 
@@ -257,6 +273,7 @@ def import_text(text: str) -> dict:
     new = sanitize({**cur, **data})
     new["ai_key"] = cur["ai_key"]  # adresu i klucza AI nie przenosimy z pliku: obcy plik nie moze ich podmienic
     new["ai_url"] = cur["ai_url"]
+    new["ai_lan"] = cur["ai_lan"]  # zgode na siec zmienia tylko uzytkownik w Ustawieniach, nie importowany plik
     return new
 
 

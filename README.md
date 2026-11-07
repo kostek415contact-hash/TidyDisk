@@ -117,7 +117,7 @@ odrzucane niezależnie od jego odpowiedzi, a przed usunięciem zawsze jest okno 
 zaznaczenia ma pierwszeństwo przed modelem. Pliki z „Twoich plików” zaznaczone przez AI trafiają do kosza.
 Pojedynczą pozycję możesz też zapytać przyciskiem **🤖 Zapytaj AI**.
 
-Adres AI jest sprawdzany ściśle (http/https, host 127.0.0.1 / localhost / ::1, bez `użytkownik@`); zapytania idą bez proxy
+Adres AI jest sprawdzany ściśle (http/https, host 127.0.0.1 / localhost / ::1 albo - tylko przy włączonej opcji sieci lokalnej - adres IP z sieci prywatnej, bez `użytkownik@`); zapytania idą bez proxy
 ze środowiska i bez przekierowań, a obcy adres z pliku ustawień lub `FC_AI_URL` jest ignorowany. Import ustawień nie
 podmienia adresu ani klucza AI. Usuwanie folderów działa na deskryptorach (nie idzie za symlinkami, nie wchodzi w
 punkty montowania), a ścieżki względne i kończące się na `..` są odrzucane.
@@ -175,7 +175,7 @@ nigdy nie trafia do raportu.
 
 ## Prywatność
 
-- AI działa **wyłącznie lokalnie** (Unsloth Studio pod 127.0.0.1 / localhost); program odmawia innych adresów.
+- AI działa domyślnie **wyłącznie lokalnie** (Unsloth Studio pod 127.0.0.1 / localhost); program odmawia innych adresów. Serwer AI na innym komputerze w sieci prywatnej (192.168.x.x, 10.x.x.x, 172.16-31.x.x) trzeba włączyć jawnie: Ustawienia → AI → „Serwer AI w sieci lokalnej” (CLI: `tidydisk config set ai_lan true`, potem `config set ai_url http://192.168.1.17:8888`). Wtedy nazwy plików, ścieżki, podglądy zawartości i klucz API idą do tamtego komputera zwykłym HTTP; adresy publiczne i nazwy hostów nadal są odrzucane. Bezpieczniejsza alternatywa: tunel `ssh -N -L 8888:127.0.0.1:8888 użytkownik@serwer` i adres `http://127.0.0.1:8888`.
 - Do modelu trafiają: ścieżki (domyślnie z `~` zamiast nazwy użytkownika), rozmiary, daty i - jeśli włączone
   „Zaglądaj do zawartości plików” - krótki początek plików tekstowych. Nic nie opuszcza komputera.
 - Dane wstawiane do zapytań są owinięte w losowe znaczniki, a prompt mówi, że nazwy plików nie są poleceniami.
@@ -209,6 +209,7 @@ Plik `~/.config/tidydisk/settings.json`; poza tym `rule_*` (przełączniki z zak
 | `analysis_depth` | Głębokość analizy folderów | 3 | 1–6 |
 | `scan_parallel` | Miejsca skanowane naraz | 1 | 1–4 |
 | `ai_url` | Adres serwera | (puste) |  |
+| `ai_lan` | Serwer AI w sieci lokalnej | wyłączone | Zezwala na adres IP z sieci prywatnej (192.168.x.x, 10.x.x.x, 172.16-31.x.x); dane idą nieszyfrowanym HTTP |
 | `ai_model` | Model | (puste) |  |
 | `ai_timeout_s` | Limit czasu zapytania (s) | 600 | 30–3600 |
 | `ai_auto` | Oceniaj automatycznie po analizie | tak |  |
